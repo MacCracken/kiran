@@ -290,7 +290,7 @@ fn stress_spawn_despawn_respawn() {
             .insert_component(e, Name(format!("entity_{i}")))
             .unwrap();
         world
-            .insert_component(e, Position(glam::Vec3::new(i as f32, 0.0, 0.0)))
+            .insert_component(e, Position(hisab::Vec3::new(i as f32, 0.0, 0.0)))
             .unwrap();
         entities.push(e);
     }
@@ -324,7 +324,7 @@ fn has_component_integration() {
     assert!(!world.has_component::<Position>(e));
 
     world
-        .insert_component(e, Position(glam::Vec3::ZERO))
+        .insert_component(e, Position(hisab::Vec3::ZERO))
         .unwrap();
     assert!(world.has_component::<Name>(e));
     assert!(world.has_component::<Position>(e));

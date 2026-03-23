@@ -153,7 +153,7 @@ pub fn apply_scene_diff(
     existing: &[crate::world::Entity],
     new_scene: &SceneDefinition,
 ) -> Result<Vec<crate::world::Entity>, KiranError> {
-    use glam::Vec3;
+    use hisab::Vec3;
 
     let mut result = Vec::new();
 
@@ -228,7 +228,7 @@ pub fn apply_scene_diff(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::Vec3;
+    use hisab::Vec3;
 
     #[test]
     fn file_watcher_basics() {

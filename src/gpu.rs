@@ -70,6 +70,11 @@ impl SooratRenderer {
     pub fn sprite_batch(&self) -> &SpriteBatch {
         &self.sprite_batch
     }
+
+    /// Get the render config.
+    pub fn config(&self) -> &RenderConfig {
+        &self.config
+    }
 }
 
 impl Default for SooratRenderer {
@@ -96,7 +101,6 @@ impl Renderer for SooratRenderer {
             return Err("SooratRenderer not initialized".into());
         }
         self.sprite_batch.clear();
-        self.camera = None;
         self.clear_color = Color::CORNFLOWER_BLUE;
         self.in_frame = true;
         Ok(())
@@ -123,7 +127,7 @@ impl Renderer for SooratRenderer {
                 });
             }
             DrawCommand::Mesh(_desc) => {
-                // 3D mesh rendering — will be implemented in soorat V0.3
+                tracing::debug!("mesh command received — 3D rendering not yet implemented");
             }
             DrawCommand::SetCamera(cam) => {
                 self.camera = Some(cam);
@@ -287,5 +291,113 @@ mod tests {
             .with_z_order(3);
         assert_eq!(sprite.z_order, 3);
         assert_eq!(sprite.center(), (42.0, 52.0));
+    }
+
+    #[test]
+    fn soorat_renderer_mesh_no_panic() {
+        use crate::render::MeshDesc;
+
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        r.begin_frame().unwrap();
+
+        r.submit(DrawCommand::Mesh(MeshDesc {
+            mesh_id: 1,
+            transform: [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            ],
+            material_id: 0,
+        }))
+        .unwrap();
+
+        // Mesh doesn't add to sprite count
+        assert_eq!(r.sprite_count(), 0);
+        r.end_frame().unwrap();
+    }
+
+    #[test]
+    fn soorat_renderer_sprite_batch_clears_between_frames() {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+
+        // Frame 1: add 3 sprites
+        r.begin_frame().unwrap();
+        for _ in 0..3 {
+            r.submit(DrawCommand::Sprite(SpriteDesc {
+                texture_id: 0,
+                x: 0.0,
+                y: 0.0,
+                width: 10.0,
+                height: 10.0,
+                rotation: 0.0,
+                color: [1.0; 4],
+            }))
+            .unwrap();
+        }
+        assert_eq!(r.sprite_count(), 3);
+        r.end_frame().unwrap();
+
+        // Frame 2: batch should be empty
+        r.begin_frame().unwrap();
+        assert_eq!(r.sprite_count(), 0);
+        r.end_frame().unwrap();
+    }
+
+    #[test]
+    fn soorat_renderer_default_clear_color() {
+        let r = SooratRenderer::new();
+        assert_eq!(r.clear_color(), Color::CORNFLOWER_BLUE);
+    }
+
+    #[test]
+    fn soorat_renderer_config() {
+        let mut r = SooratRenderer::new();
+        let cfg = RenderConfig {
+            width: 1920,
+            height: 1080,
+            vsync: false,
+            fullscreen: true,
+            title: "Test".into(),
+        };
+        r.init(&cfg).unwrap();
+
+        assert_eq!(r.config().width, 1920);
+        assert_eq!(r.config().height, 1080);
+        assert!(!r.config().vsync);
+        assert!(r.config().fullscreen);
+    }
+
+    #[test]
+    fn soorat_renderer_shutdown_reinit() {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        r.begin_frame().unwrap();
+        r.end_frame().unwrap();
+        assert_eq!(r.frame_count(), 1);
+
+        r.shutdown().unwrap();
+        assert!(!r.initialized);
+
+        // Re-init
+        r.init(&RenderConfig::default()).unwrap();
+        r.begin_frame().unwrap();
+        r.end_frame().unwrap();
+        assert_eq!(r.frame_count(), 2);
+    }
+
+    #[test]
+    fn soorat_renderer_camera_persists_across_frames() {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+
+        // Frame 1: set camera
+        r.begin_frame().unwrap();
+        r.submit(DrawCommand::SetCamera(Camera::default())).unwrap();
+        r.end_frame().unwrap();
+
+        // Frame 2: camera should still be set
+        r.begin_frame().unwrap();
+        assert!(r.camera().is_some());
+        r.end_frame().unwrap();
     }
 }

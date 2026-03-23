@@ -74,11 +74,16 @@ Kiran does NOT own:
 - soorat re-exports (Color, Sprite, SpriteBatch, Vertex2D/3D, GpuContext, WindowConfig)
 - prakash optics integration via soorat (color temperature, wavelength, PBR)
 
+### Impetus 3D Integration (2026-03-23)
+
+- `physics-3d` feature flag (activates impetus 3D backend)
+- Segment and ConvexHull collider factories
+- Segment shape in TOML (`shape = "segment"` with point_a/point_b)
+- DebugShapeKind::Segment for debug rendering
+- 3D position tests (gravity on Z axis, X/Z unchanged)
+- Full 3D physics pipeline verified (register → step → sync)
+
 ## Remaining
-
-### Physics
-
-- [ ] Full impetus 3D integration
 
 ### Scripting
 

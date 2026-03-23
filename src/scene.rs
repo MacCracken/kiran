@@ -3,7 +3,7 @@
 //! Defines the scene file format and provides helpers to load scenes from
 //! TOML strings and spawn their entities into a [`World`](crate::World).
 
-use glam::Vec3;
+use hisab::Vec3;
 use serde::{Deserialize, Serialize};
 
 use crate::world::{Entity, KiranError, World};
@@ -71,7 +71,7 @@ pub struct PhysicsDef {
 /// Collider definition in a scene file.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColliderDef {
-    /// Shape type: "ball", "box", or "capsule".
+    /// Shape type: "ball", "box", "capsule", "segment".
     pub shape: String,
     /// Radius for ball/capsule shapes.
     #[serde(default)]
@@ -82,6 +82,12 @@ pub struct ColliderDef {
     /// Half-height for capsule shapes.
     #[serde(default)]
     pub half_height: Option<f64>,
+    /// Start point for segment shapes.
+    #[serde(default)]
+    pub point_a: Option<[f64; 3]>,
+    /// End point for segment shapes.
+    #[serde(default)]
+    pub point_b: Option<[f64; 3]>,
 }
 
 /// Sound source definition in a scene file.
@@ -341,6 +347,10 @@ fn spawn_entity_def(
                 "capsule" => Collider::capsule(
                     phys.collider.half_height.unwrap_or(0.5),
                     phys.collider.radius.unwrap_or(0.25),
+                ),
+                "segment" => Collider::segment(
+                    phys.collider.point_a.unwrap_or([0.0, 0.0, 0.0]),
+                    phys.collider.point_b.unwrap_or([1.0, 0.0, 0.0]),
                 ),
                 _ => Collider::ball(0.5),
             };
@@ -1098,5 +1108,64 @@ radius = 0.3
         let entities = spawn_scene(&mut world, &scene).unwrap();
         let rb = world.get_component::<RigidBody>(entities[0]).unwrap();
         assert_eq!(rb.body_type, impetus::BodyType::Kinematic);
+    }
+
+    #[cfg(feature = "physics")]
+    #[test]
+    fn toml_driven_physics_segment() {
+        use crate::physics::{Collider, PhysicsEngine};
+
+        let toml_str = r#"
+name = "Segment"
+[[entities]]
+name = "Wall"
+position = [0.0, 0.0, 0.0]
+[entities.physics]
+body_type = "static"
+[entities.physics.collider]
+shape = "segment"
+point_a = [0.0, 0.0, 0.0]
+point_b = [10.0, 0.0, 0.0]
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        let col = world.get_component::<Collider>(entities[0]).unwrap();
+        match &col.shape {
+            impetus::ColliderShape::Segment { a, b } => {
+                assert_eq!(*a, [0.0, 0.0, 0.0]);
+                assert_eq!(*b, [10.0, 0.0, 0.0]);
+            }
+            _ => panic!("expected segment collider"),
+        }
+    }
+
+    #[cfg(feature = "physics")]
+    #[test]
+    fn toml_driven_physics_3d_position() {
+        use crate::physics::{PhysicsEngine, PhysicsPosition};
+
+        let toml_str = r#"
+name = "3D"
+[[entities]]
+name = "Floating"
+position = [5.0, 20.0, -10.0]
+[entities.physics]
+body_type = "dynamic"
+[entities.physics.collider]
+shape = "ball"
+radius = 1.0
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        let pos = world.get_component::<PhysicsPosition>(entities[0]).unwrap();
+        assert_eq!(pos.position[0], 5.0);
+        assert_eq!(pos.position[1], 20.0);
+        assert_eq!(pos.position[2], -10.0);
     }
 }

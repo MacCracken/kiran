@@ -94,7 +94,7 @@ fn bench_world(c: &mut Criterion) {
             for _ in 0..100 {
                 let e = world.spawn();
                 world
-                    .insert_component(e, black_box(Position(glam::Vec3::ZERO)))
+                    .insert_component(e, black_box(Position(hisab::Vec3::ZERO)))
                     .unwrap();
             }
         })
@@ -110,7 +110,7 @@ fn bench_world(c: &mut Criterion) {
                     let e = world.spawn();
                     world.insert_component(e, Name(format!("E{i}"))).unwrap();
                     world
-                        .insert_component(e, Position(glam::Vec3::ZERO))
+                        .insert_component(e, Position(hisab::Vec3::ZERO))
                         .unwrap();
                     entities.push(e);
                 }
@@ -130,7 +130,7 @@ fn bench_world(c: &mut Criterion) {
         for i in 0..1000 {
             let e = world.spawn();
             world
-                .insert_component(e, Position(glam::Vec3::new(i as f32, 0.0, 0.0)))
+                .insert_component(e, Position(hisab::Vec3::new(i as f32, 0.0, 0.0)))
                 .unwrap();
             entities.push(e);
         }
@@ -334,7 +334,7 @@ fn bench_render(c: &mut Criterion) {
         b.iter(|| {
             follow.follow(
                 black_box(&mut cam),
-                black_box(glam::Vec3::new(10.0, 0.0, 5.0)),
+                black_box(hisab::Vec3::new(10.0, 0.0, 5.0)),
                 black_box(0.016),
             );
         })
@@ -675,6 +675,74 @@ fn bench_script(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// SooratRenderer (rendering feature)
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "rendering")]
+fn bench_soorat(c: &mut Criterion) {
+    use kiran::gpu::SooratRenderer;
+    use kiran::render::{DrawCommand, RenderConfig, Renderer, SpriteDesc};
+
+    let mut group = c.benchmark_group("soorat");
+
+    group.bench_function("frame_empty", |b| {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        b.iter(|| {
+            r.begin_frame().unwrap();
+            r.end_frame().unwrap();
+        })
+    });
+
+    group.bench_function("frame_10_sprites", |b| {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        b.iter(|| {
+            r.begin_frame().unwrap();
+            for i in 0..10 {
+                r.submit(DrawCommand::Sprite(SpriteDesc {
+                    texture_id: 0,
+                    x: black_box(i as f32 * 10.0),
+                    y: 0.0,
+                    width: 32.0,
+                    height: 32.0,
+                    rotation: 0.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                }))
+                .unwrap();
+            }
+            r.end_frame().unwrap();
+        })
+    });
+
+    group.bench_function("frame_100_sprites", |b| {
+        let mut r = SooratRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        b.iter(|| {
+            r.begin_frame().unwrap();
+            for i in 0..100 {
+                r.submit(DrawCommand::Sprite(SpriteDesc {
+                    texture_id: 0,
+                    x: black_box(i as f32),
+                    y: 0.0,
+                    width: 32.0,
+                    height: 32.0,
+                    rotation: 0.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                }))
+                .unwrap();
+            }
+            r.end_frame().unwrap();
+        })
+    });
+
+    group.finish();
+}
+
+#[cfg(not(feature = "rendering"))]
+fn bench_soorat(_c: &mut Criterion) {}
+
 criterion_group!(
     benches,
     bench_world,
@@ -689,5 +757,6 @@ criterion_group!(
     bench_resources,
     bench_reload,
     bench_script,
+    bench_soorat,
 );
 criterion_main!(benches);

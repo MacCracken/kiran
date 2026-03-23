@@ -3,7 +3,7 @@
 //! Defines the rendering trait, camera with view/projection matrices,
 //! sprite/mesh descriptors, and a headless [`NullRenderer`] for testing.
 
-use glam::{Mat4, Vec3};
+use hisab::{Mat4, Vec3};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------

@@ -128,6 +128,32 @@ impl Collider {
         }
     }
 
+    /// Segment collider — a line between two points.
+    pub fn segment(a: [f64; 3], b: [f64; 3]) -> Self {
+        Self {
+            shape: impetus::ColliderShape::Segment { a, b },
+            offset: [0.0, 0.0, 0.0],
+            material: impetus::PhysicsMaterial::default(),
+            is_sensor: false,
+            mass: None,
+            collision_layer: 0xFFFF_FFFF,
+            collision_mask: 0xFFFF_FFFF,
+        }
+    }
+
+    /// Convex hull from a set of points.
+    pub fn convex_hull(points: Vec<[f64; 3]>) -> Self {
+        Self {
+            shape: impetus::ColliderShape::ConvexHull { points },
+            offset: [0.0, 0.0, 0.0],
+            material: impetus::PhysicsMaterial::default(),
+            is_sensor: false,
+            mass: None,
+            collision_layer: 0xFFFF_FFFF,
+            collision_mask: 0xFFFF_FFFF,
+        }
+    }
+
     pub fn with_material(mut self, material: impetus::PhysicsMaterial) -> Self {
         self.material = material;
         self
@@ -390,6 +416,7 @@ pub enum DebugShapeKind {
     Circle { radius: f64 },
     Box { half_extents: [f64; 3] },
     Capsule { half_height: f64, radius: f64 },
+    Segment { a: [f64; 3], b: [f64; 3] },
 }
 
 impl PhysicsEngine {
@@ -421,6 +448,9 @@ impl PhysicsEngine {
                     half_height: *half_height,
                     radius: *radius,
                 },
+                impetus::ColliderShape::Segment { a, b } => {
+                    DebugShapeKind::Segment { a: *a, b: *b }
+                }
                 _ => continue,
             };
 
@@ -975,5 +1005,112 @@ mod tests {
 
         assert_eq!(engine.entity_count(), 3);
         assert_eq!(engine.physics.body_count(), 3);
+    }
+
+    // -- 3D-specific tests --
+
+    #[test]
+    fn collider_segment() {
+        let col = Collider::segment([0.0, 0.0, 0.0], [10.0, 5.0, 0.0]);
+        match &col.shape {
+            impetus::ColliderShape::Segment { a, b } => {
+                assert_eq!(*a, [0.0, 0.0, 0.0]);
+                assert_eq!(*b, [10.0, 5.0, 0.0]);
+            }
+            _ => panic!("expected segment"),
+        }
+    }
+
+    #[test]
+    fn collider_convex_hull() {
+        let points = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]];
+        let col = Collider::convex_hull(points.clone());
+        match &col.shape {
+            impetus::ColliderShape::ConvexHull { points: pts } => {
+                assert_eq!(pts.len(), 3);
+            }
+            _ => panic!("expected convex hull"),
+        }
+    }
+
+    #[test]
+    fn register_entity_3d_position() {
+        let mut engine = PhysicsEngine::new();
+        let e = test_entity(1);
+        engine.register(
+            e,
+            &RigidBody::dynamic(),
+            &PhysicsPosition {
+                position: [5.0, 10.0, 15.0],
+                rotation: 0.0,
+            },
+            &Collider::ball(1.0),
+        );
+
+        let state = engine
+            .physics
+            .get_body_state(engine.body_handle(e).unwrap())
+            .unwrap();
+        assert_eq!(state.position[0], 5.0);
+        assert_eq!(state.position[1], 10.0);
+        assert_eq!(state.position[2], 15.0);
+    }
+
+    #[test]
+    fn physics_step_3d_gravity() {
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+        world.insert_resource(EventBus::new());
+
+        let entity = world.spawn();
+        let pos = PhysicsPosition {
+            position: [5.0, 20.0, -3.0],
+            rotation: 0.0,
+        };
+        world.insert_component(entity, pos.clone()).unwrap();
+        world.insert_component(entity, Velocity::default()).unwrap();
+
+        {
+            let engine = world.get_resource_mut::<PhysicsEngine>().unwrap();
+            engine.register(entity, &RigidBody::dynamic(), &pos, &Collider::ball(0.5));
+        }
+
+        for _ in 0..60 {
+            physics_step(&mut world);
+        }
+
+        let final_pos = world.get_component::<PhysicsPosition>(entity).unwrap();
+        // Y should have fallen, X and Z should be unchanged
+        assert!(final_pos.position[1] < 20.0, "should fall under gravity");
+        assert!((final_pos.position[0] - 5.0).abs() < 0.01, "X unchanged");
+        assert!((final_pos.position[2] - (-3.0)).abs() < 0.01, "Z unchanged");
+    }
+
+    #[test]
+    fn debug_shapes_segment() {
+        let mut world = World::new();
+        let mut engine = PhysicsEngine::new();
+
+        let e = world.spawn();
+        let rb = RigidBody::fixed();
+        let col = Collider::segment([0.0, 0.0, 0.0], [10.0, 0.0, 0.0]);
+        let pos = PhysicsPosition::default();
+
+        world.insert_component(e, col.clone()).unwrap();
+        world.insert_component(e, pos.clone()).unwrap();
+        engine.register(e, &rb, &pos, &col);
+        world.insert_resource(engine);
+
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        let shapes = engine.debug_shapes(&world);
+        assert_eq!(shapes.len(), 1);
+
+        match &shapes[0].kind {
+            DebugShapeKind::Segment { a, b } => {
+                assert_eq!(*a, [0.0, 0.0, 0.0]);
+                assert_eq!(*b, [10.0, 0.0, 0.0]);
+            }
+            _ => panic!("expected segment debug shape"),
+        }
     }
 }
