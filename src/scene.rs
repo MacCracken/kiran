@@ -252,7 +252,7 @@ pub fn spawn_scene(world: &mut World, scene: &SceneDefinition) -> Result<Vec<Ent
 }
 
 /// Spawn a single entity definition, resolving prefabs and recursing into children.
-fn spawn_entity_def(
+pub(crate) fn spawn_entity_def(
     world: &mut World,
     def: &EntityDef,
     prefabs: &[PrefabDef],

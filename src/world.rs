@@ -295,11 +295,10 @@ impl World {
     /// Marks the resource as changed at the current tick.
     pub fn get_resource_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
         let tid = TypeId::of::<T>();
-        let resource = self.resources.get_mut(&tid)?.downcast_mut::<T>();
-        if resource.is_some() {
-            self.resource_changed.insert(tid, self.tick);
-        }
-        resource
+        let resource = self.resources.get_mut(&tid)?;
+        // Mark changed before downcast — we know the resource exists
+        self.resource_changed.insert(tid, self.tick);
+        resource.downcast_mut::<T>()
     }
 
     /// Check if a resource has changed since the last call to `clear_resource_changed`.

@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::scene::{
-    LightComponent, Material, Name, Position, SceneDefinition, Tags, load_scene, spawn_scene,
+    LightComponent, Material, Name, Position, SceneDefinition, Tags, load_scene, spawn_entity_def,
+    spawn_scene,
 };
 use crate::world::{KiranError, World};
 
@@ -197,17 +198,9 @@ pub fn apply_scene_diff(
 
             result.push(entity);
         } else {
-            // New entity — spawn it
-            let entities = spawn_scene(
-                world,
-                &SceneDefinition {
-                    name: new_scene.name.clone(),
-                    description: String::new(),
-                    prefabs: new_scene.prefabs.clone(),
-                    entities: vec![def.clone()],
-                },
-            )?;
-            result.extend(entities);
+            // New entity — spawn directly (avoids allocating a temporary SceneDefinition)
+            let entity = spawn_entity_def(world, def, &new_scene.prefabs, None)?;
+            result.push(entity);
         }
     }
 
