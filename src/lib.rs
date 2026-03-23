@@ -11,8 +11,14 @@ pub mod world;
 #[cfg(feature = "ai")]
 pub mod ai;
 
+#[cfg(feature = "audio")]
+pub mod audio;
+
 #[cfg(feature = "physics")]
 pub mod physics;
 
 // Re-export key types at crate root
-pub use world::{Entity, EventBus, GameClock, KiranError, Result, World};
+pub use world::{
+    Entity, EventBus, FnSystem, GameClock, KiranError, Result, Scheduler, System, SystemStage,
+    World,
+};

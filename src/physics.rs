@@ -300,6 +300,28 @@ impl PhysicsEngine {
         self.body_to_entity.get(&handle).copied()
     }
 
+    /// Cast a ray and return the first entity hit.
+    pub fn raycast(
+        &self,
+        origin: [f64; 3],
+        direction: [f64; 3],
+        max_dist: f64,
+    ) -> Option<RaycastHit> {
+        let hit = self.physics.raycast(origin, direction, max_dist)?;
+        let entity = self.find_entity_for_collider(hit.collider)?;
+        Some(RaycastHit {
+            entity,
+            point: hit.point,
+            normal: hit.normal,
+            distance: hit.distance,
+        })
+    }
+
+    /// Spawn a particle in the physics world.
+    pub fn spawn_particle(&mut self, particle: impetus::Particle) -> impetus::ParticleHandle {
+        self.physics.spawn_particle(particle)
+    }
+
     /// Get collision events from the last step, mapped to kiran entity IDs.
     pub fn collision_events(&self) -> Vec<PhysicsCollisionEvent> {
         self.physics
@@ -347,6 +369,15 @@ impl Default for PhysicsEngine {
 pub enum PhysicsCollisionEvent {
     Started { entity_a: Entity, entity_b: Entity },
     Stopped { entity_a: Entity, entity_b: Entity },
+}
+
+/// Result of a raycast query, mapped to kiran entity IDs.
+#[derive(Debug, Clone)]
+pub struct RaycastHit {
+    pub entity: Entity,
+    pub point: [f64; 3],
+    pub normal: [f64; 3],
+    pub distance: f64,
 }
 
 // ---------------------------------------------------------------------------

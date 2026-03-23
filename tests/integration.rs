@@ -227,18 +227,29 @@ fn scene_toml_roundtrip() {
     let original = SceneDefinition {
         name: "Roundtrip".into(),
         description: "Testing serialization".into(),
+        prefabs: vec![],
         entities: vec![
             EntityDef {
                 name: "A".into(),
                 position: [1.0, 2.0, 3.0],
                 light_intensity: Some(0.5),
                 tags: vec!["tag1".into()],
+                material: None,
+                children: vec![],
+                prefab: None,
+                sound: None,
+                physics: None,
             },
             EntityDef {
                 name: "B".into(),
                 position: [0.0, 0.0, 0.0],
                 light_intensity: None,
                 tags: vec![],
+                material: None,
+                children: vec![],
+                prefab: None,
+                sound: None,
+                physics: None,
             },
         ],
     };

@@ -1,9 +1,12 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use kiran::World;
 use kiran::input::{InputEvent, InputState, KeyCode, MouseButton};
-use kiran::render::{Camera, DrawCommand, NullRenderer, RenderConfig, Renderer};
+use kiran::render::{
+    Camera, DrawCommand, FlyController, FollowController, NullRenderer, OrbitController,
+    RenderConfig, Renderer,
+};
 use kiran::scene::{Name, Position, load_scene, spawn_scene};
-use kiran::world::{EventBus, GameClock};
+use kiran::world::{EventBus, FnSystem, GameClock, Scheduler, SystemStage};
 
 // ---------------------------------------------------------------------------
 // ECS world operations
@@ -301,6 +304,40 @@ fn bench_render(c: &mut Criterion) {
         })
     });
 
+    group.bench_function("orbit_controller_apply", |b| {
+        let orbit = OrbitController::default();
+        let mut cam = Camera::default();
+        b.iter(|| {
+            orbit.apply(black_box(&mut cam));
+        })
+    });
+
+    group.bench_function("fly_controller_move", |b| {
+        let fly = FlyController::default();
+        let mut cam = Camera::default();
+        b.iter(|| {
+            fly.fly(
+                black_box(&mut cam),
+                black_box(1.0),
+                black_box(0.0),
+                black_box(0.0),
+                black_box(0.016),
+            );
+        })
+    });
+
+    group.bench_function("follow_controller", |b| {
+        let follow = FollowController::default();
+        let mut cam = Camera::default();
+        b.iter(|| {
+            follow.follow(
+                black_box(&mut cam),
+                black_box(glam::Vec3::new(10.0, 0.0, 5.0)),
+                black_box(0.016),
+            );
+        })
+    });
+
     group.bench_function("null_renderer_10_commands", |b| {
         let mut renderer = NullRenderer::new();
         renderer.init(&RenderConfig::default()).unwrap();
@@ -420,6 +457,115 @@ fn bench_game_loop(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// Scheduler
+// ---------------------------------------------------------------------------
+
+fn bench_scheduler(c: &mut Criterion) {
+    let mut group = c.benchmark_group("scheduler");
+
+    group.bench_function("run_4_systems", |b| {
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new("input", SystemStage::Input, |_| {})));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "physics",
+            SystemStage::Physics,
+            |_| {},
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "logic",
+            SystemStage::GameLogic,
+            |_| {},
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "render",
+            SystemStage::Render,
+            |_| {},
+        )));
+
+        let mut world = World::new();
+        // Pre-sort
+        scheduler.run(&mut world);
+
+        b.iter(|| {
+            scheduler.run(black_box(&mut world));
+        })
+    });
+
+    group.bench_function("run_10_systems", |b| {
+        let mut scheduler = Scheduler::new();
+        for i in 0..10 {
+            let stage = match i % 4 {
+                0 => SystemStage::Input,
+                1 => SystemStage::Physics,
+                2 => SystemStage::GameLogic,
+                _ => SystemStage::Render,
+            };
+            scheduler.add_system(Box::new(FnSystem::new(format!("sys_{i}"), stage, |_| {})));
+        }
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        b.iter(|| {
+            scheduler.run(black_box(&mut world));
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Hierarchy spawning
+// ---------------------------------------------------------------------------
+
+fn bench_hierarchy(c: &mut Criterion) {
+    let mut group = c.benchmark_group("hierarchy");
+
+    group.bench_function("spawn_10_with_children", |b| {
+        let toml_str = r#"
+name = "Hierarchy Bench"
+[[entities]]
+name = "P0"
+[[entities.children]]
+name = "C0"
+[[entities.children]]
+name = "C1"
+[[entities]]
+name = "P1"
+[[entities.children]]
+name = "C2"
+[[entities.children]]
+name = "C3"
+[[entities]]
+name = "P2"
+[[entities.children]]
+name = "C4"
+[[entities.children]]
+name = "C5"
+[[entities]]
+name = "P3"
+[[entities.children]]
+name = "C6"
+[[entities.children]]
+name = "C7"
+[[entities]]
+name = "P4"
+[[entities.children]]
+name = "C8"
+[[entities.children]]
+name = "C9"
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        b.iter(|| {
+            let mut world = World::new();
+            spawn_scene(&mut world, black_box(&scene)).unwrap();
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_world,
@@ -429,5 +575,7 @@ criterion_group!(
     bench_clock,
     bench_events,
     bench_game_loop,
+    bench_scheduler,
+    bench_hierarchy,
 );
 criterion_main!(benches);

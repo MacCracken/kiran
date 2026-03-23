@@ -8,8 +8,9 @@ description = "Kiran — AI-native game engine for AGNOS"
 [features]
 default = []
 ai = ["dep:reqwest", "dep:tokio"]
+audio = ["dep:dhvani"]
 physics = ["dep:impetus"]
-full = ["ai", "physics"]
+full = ["ai", "audio", "physics"]
 
 [dependencies]
 # Core
@@ -28,6 +29,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # AI (optional)
 reqwest = { version = "0.12", features = ["json"], optional = true }
 tokio = { version = "1", features = ["full"], optional = true }
+
+# Audio (optional)
+dhvani = { version = "0.22", optional = true }
 
 # Physics (optional)
 impetus = { path = "../impetus", optional = true }

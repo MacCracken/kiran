@@ -80,6 +80,136 @@ impl Camera {
 }
 
 // ---------------------------------------------------------------------------
+// Camera controllers
+// ---------------------------------------------------------------------------
+
+/// Orbit camera controller — rotates around a target point.
+#[derive(Debug, Clone)]
+pub struct OrbitController {
+    pub distance: f32,
+    pub yaw: f32,
+    pub pitch: f32,
+    pub target: Vec3,
+    pub min_pitch: f32,
+    pub max_pitch: f32,
+    pub min_distance: f32,
+    pub max_distance: f32,
+}
+
+impl Default for OrbitController {
+    fn default() -> Self {
+        Self {
+            distance: 10.0,
+            yaw: 0.0,
+            pitch: 0.3,
+            target: Vec3::ZERO,
+            min_pitch: -1.4,
+            max_pitch: 1.4,
+            min_distance: 1.0,
+            max_distance: 100.0,
+        }
+    }
+}
+
+impl OrbitController {
+    /// Rotate by a yaw/pitch delta (in radians).
+    pub fn rotate(&mut self, dyaw: f32, dpitch: f32) {
+        self.yaw += dyaw;
+        self.pitch = (self.pitch + dpitch).clamp(self.min_pitch, self.max_pitch);
+    }
+
+    /// Zoom by a distance delta (positive = closer).
+    pub fn zoom(&mut self, delta: f32) {
+        self.distance = (self.distance - delta).clamp(self.min_distance, self.max_distance);
+    }
+
+    /// Apply this controller's state to a camera.
+    pub fn apply(&self, camera: &mut Camera) {
+        let x = self.distance * self.pitch.cos() * self.yaw.sin();
+        let y = self.distance * self.pitch.sin();
+        let z = self.distance * self.pitch.cos() * self.yaw.cos();
+        camera.position = self.target + Vec3::new(x, y, z);
+        camera.target = self.target;
+    }
+}
+
+/// Fly camera controller — free-look first-person movement.
+#[derive(Debug, Clone)]
+pub struct FlyController {
+    pub speed: f32,
+    pub yaw: f32,
+    pub pitch: f32,
+}
+
+impl Default for FlyController {
+    fn default() -> Self {
+        Self {
+            speed: 10.0,
+            yaw: 0.0,
+            pitch: 0.0,
+        }
+    }
+}
+
+impl FlyController {
+    /// Rotate by a yaw/pitch delta (in radians).
+    pub fn rotate(&mut self, dyaw: f32, dpitch: f32) {
+        self.yaw += dyaw;
+        self.pitch = (self.pitch + dpitch).clamp(-1.5, 1.5);
+    }
+
+    /// Compute the forward direction vector.
+    pub fn forward(&self) -> Vec3 {
+        Vec3::new(
+            self.pitch.cos() * self.yaw.sin(),
+            self.pitch.sin(),
+            self.pitch.cos() * self.yaw.cos(),
+        )
+    }
+
+    /// Compute the right direction vector.
+    pub fn right(&self) -> Vec3 {
+        self.forward().cross(Vec3::Y).normalize()
+    }
+
+    /// Move the camera: forward/right/up amounts scaled by dt.
+    pub fn fly(&self, camera: &mut Camera, forward: f32, right: f32, up: f32, dt: f32) {
+        let fwd = self.forward();
+        let r = self.right();
+        camera.position += fwd * forward * self.speed * dt;
+        camera.position += r * right * self.speed * dt;
+        camera.position += Vec3::Y * up * self.speed * dt;
+        camera.target = camera.position + fwd;
+    }
+}
+
+/// Follow camera controller — tracks a target position with offset.
+#[derive(Debug, Clone)]
+pub struct FollowController {
+    pub offset: Vec3,
+    pub smoothing: f32,
+}
+
+impl Default for FollowController {
+    fn default() -> Self {
+        Self {
+            offset: Vec3::new(0.0, 5.0, 10.0),
+            smoothing: 5.0,
+        }
+    }
+}
+
+impl FollowController {
+    /// Update camera to follow a target position, smoothed by dt.
+    pub fn follow(&self, camera: &mut Camera, target_pos: Vec3, dt: f32) {
+        let desired = target_pos + self.offset;
+        let t = (self.smoothing * dt).min(1.0);
+        camera.position = camera.position.lerp(desired, t);
+        camera.target = target_pos;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Draw descriptors
 // ---------------------------------------------------------------------------
 
@@ -294,5 +424,107 @@ mod tests {
         assert_eq!(cfg.height, 720);
         assert!(cfg.vsync);
         assert!(!cfg.fullscreen);
+    }
+
+    // -- Camera controller tests --
+
+    #[test]
+    fn orbit_controller_apply() {
+        let mut cam = Camera::default();
+        let orbit = OrbitController::default();
+        orbit.apply(&mut cam);
+
+        // Camera should be at distance from target
+        let dist = cam.position.distance(orbit.target);
+        assert!((dist - orbit.distance).abs() < 0.01);
+        assert_eq!(cam.target, orbit.target);
+    }
+
+    #[test]
+    fn orbit_controller_rotate() {
+        let mut orbit = OrbitController::default();
+        let old_yaw = orbit.yaw;
+        orbit.rotate(0.5, 0.2);
+        assert!((orbit.yaw - old_yaw - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn orbit_controller_zoom_clamp() {
+        let mut orbit = OrbitController::default();
+        orbit.zoom(1000.0); // zoom way in
+        assert_eq!(orbit.distance, orbit.min_distance);
+
+        orbit.zoom(-1000.0); // zoom way out
+        assert_eq!(orbit.distance, orbit.max_distance);
+    }
+
+    #[test]
+    fn orbit_controller_pitch_clamp() {
+        let mut orbit = OrbitController::default();
+        orbit.rotate(0.0, 100.0);
+        assert_eq!(orbit.pitch, orbit.max_pitch);
+
+        orbit.rotate(0.0, -200.0);
+        assert_eq!(orbit.pitch, orbit.min_pitch);
+    }
+
+    #[test]
+    fn fly_controller_forward() {
+        let fly = FlyController::default();
+        let fwd = fly.forward();
+        // Default yaw=0, pitch=0 → forward is (0, 0, 1)
+        assert!(fwd.z.abs() > 0.9);
+    }
+
+    #[test]
+    fn fly_controller_move() {
+        let fly = FlyController::default();
+        let mut cam = Camera::default();
+        let start = cam.position;
+        fly.fly(&mut cam, 1.0, 0.0, 0.0, 1.0);
+        assert_ne!(cam.position, start);
+    }
+
+    #[test]
+    fn fly_controller_rotate() {
+        let mut fly = FlyController::default();
+        fly.rotate(1.0, 0.5);
+        assert!((fly.yaw - 1.0).abs() < f32::EPSILON);
+        assert!((fly.pitch - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn fly_controller_pitch_clamp() {
+        let mut fly = FlyController::default();
+        fly.rotate(0.0, 100.0);
+        assert!(fly.pitch <= 1.5);
+    }
+
+    #[test]
+    fn follow_controller_moves_camera() {
+        let follow = FollowController::default();
+        let mut cam = Camera::default();
+        let target = Vec3::new(10.0, 0.0, 5.0);
+
+        // After following for long enough, camera approaches target + offset
+        for _ in 0..100 {
+            follow.follow(&mut cam, target, 1.0 / 60.0);
+        }
+
+        let expected = target + follow.offset;
+        assert!((cam.position - expected).length() < 0.5);
+        assert_eq!(cam.target, target);
+    }
+
+    #[test]
+    fn follow_controller_smooth() {
+        let follow = FollowController::default();
+        let mut cam = Camera::default();
+        let target = Vec3::new(100.0, 0.0, 0.0);
+
+        // Single step shouldn't snap instantly
+        follow.follow(&mut cam, target, 1.0 / 60.0);
+        let expected = target + follow.offset;
+        assert!((cam.position - expected).length() > 1.0);
     }
 }

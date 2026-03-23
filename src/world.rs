@@ -288,6 +288,118 @@ impl World {
 }
 
 // ---------------------------------------------------------------------------
+// System trait + scheduler
+// ---------------------------------------------------------------------------
+
+/// Pipeline stage for ordering systems.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SystemStage {
+    /// Read input events, update InputState.
+    Input = 0,
+    /// Fixed-timestep physics simulation.
+    Physics = 1,
+    /// Gameplay logic (AI, scripting, game rules).
+    GameLogic = 2,
+    /// Submit draw commands, update cameras.
+    Render = 3,
+}
+
+/// A system that operates on the world each frame.
+pub trait System: Send {
+    /// Run this system against the world.
+    fn run(&mut self, world: &mut World);
+
+    /// Which stage this system belongs to.
+    fn stage(&self) -> SystemStage;
+
+    /// Human-readable name for debugging.
+    fn name(&self) -> &str;
+}
+
+/// Runs systems in stage order: Input → Physics → GameLogic → Render.
+pub struct Scheduler {
+    systems: Vec<Box<dyn System>>,
+    sorted: bool,
+}
+
+impl Default for Scheduler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Scheduler {
+    pub fn new() -> Self {
+        Self {
+            systems: Vec::new(),
+            sorted: false,
+        }
+    }
+
+    /// Add a system to the scheduler.
+    pub fn add_system(&mut self, system: Box<dyn System>) {
+        self.systems.push(system);
+        self.sorted = false;
+    }
+
+    /// Run all systems in stage order against the world.
+    pub fn run(&mut self, world: &mut World) {
+        if !self.sorted {
+            self.systems.sort_by_key(|s| s.stage());
+            self.sorted = true;
+        }
+        for system in &mut self.systems {
+            system.run(world);
+        }
+    }
+
+    /// Number of registered systems.
+    pub fn system_count(&self) -> usize {
+        self.systems.len()
+    }
+
+    /// List system names in execution order.
+    pub fn system_names(&mut self) -> Vec<&str> {
+        if !self.sorted {
+            self.systems.sort_by_key(|s| s.stage());
+            self.sorted = true;
+        }
+        self.systems.iter().map(|s| s.name()).collect()
+    }
+}
+
+/// Convenience: wrap a closure as a system.
+pub struct FnSystem<F: FnMut(&mut World) + Send> {
+    func: F,
+    stage: SystemStage,
+    name: String,
+}
+
+impl<F: FnMut(&mut World) + Send> FnSystem<F> {
+    pub fn new(name: impl Into<String>, stage: SystemStage, func: F) -> Self {
+        Self {
+            func,
+            stage,
+            name: name.into(),
+        }
+    }
+}
+
+impl<F: FnMut(&mut World) + Send> System for FnSystem<F> {
+    fn run(&mut self, world: &mut World) {
+        (self.func)(world);
+    }
+
+    fn stage(&self) -> SystemStage {
+        self.stage
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+// ---------------------------------------------------------------------------
 // GameClock
 // ---------------------------------------------------------------------------
 
@@ -787,5 +899,171 @@ mod tests {
         // Respawn and verify
         let _ = alloc.spawn();
         assert_eq!(alloc.alive_count(), 1);
+    }
+
+    // -- System / Scheduler tests --
+
+    #[test]
+    fn scheduler_runs_in_stage_order() {
+        use std::sync::{Arc, Mutex};
+
+        let log: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(Vec::new()));
+
+        let log1 = log.clone();
+        let log2 = log.clone();
+        let log3 = log.clone();
+
+        let mut scheduler = Scheduler::new();
+
+        // Add in reverse order to verify sorting
+        scheduler.add_system(Box::new(FnSystem::new(
+            "render",
+            SystemStage::Render,
+            move |_| {
+                log3.lock().unwrap().push("render");
+            },
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "input",
+            SystemStage::Input,
+            move |_| {
+                log1.lock().unwrap().push("input");
+            },
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "logic",
+            SystemStage::GameLogic,
+            move |_| {
+                log2.lock().unwrap().push("logic");
+            },
+        )));
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        let order = log.lock().unwrap();
+        assert_eq!(*order, vec!["input", "logic", "render"]);
+    }
+
+    #[test]
+    fn scheduler_system_names() {
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new(
+            "physics",
+            SystemStage::Physics,
+            |_| {},
+        )));
+        scheduler.add_system(Box::new(FnSystem::new("input", SystemStage::Input, |_| {})));
+
+        let names = scheduler.system_names();
+        assert_eq!(names, vec!["input", "physics"]);
+    }
+
+    #[test]
+    fn scheduler_system_modifies_world() {
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new(
+            "spawner",
+            SystemStage::GameLogic,
+            |world: &mut World| {
+                world.spawn();
+            },
+        )));
+
+        let mut world = World::new();
+        assert_eq!(world.entity_count(), 0);
+        scheduler.run(&mut world);
+        assert_eq!(world.entity_count(), 1);
+        scheduler.run(&mut world);
+        assert_eq!(world.entity_count(), 2);
+    }
+
+    #[test]
+    fn system_stage_ordering() {
+        assert!(SystemStage::Input < SystemStage::Physics);
+        assert!(SystemStage::Physics < SystemStage::GameLogic);
+        assert!(SystemStage::GameLogic < SystemStage::Render);
+    }
+
+    #[test]
+    fn fn_system_basics() {
+        let sys = FnSystem::new("test_sys", SystemStage::Input, |_: &mut World| {});
+        assert_eq!(sys.name(), "test_sys");
+        assert_eq!(sys.stage(), SystemStage::Input);
+    }
+
+    #[test]
+    fn scheduler_all_four_stages() {
+        use std::sync::{Arc, Mutex};
+
+        let log: Arc<Mutex<Vec<&'static str>>> = Arc::new(Mutex::new(Vec::new()));
+        let (l1, l2, l3, l4) = (log.clone(), log.clone(), log.clone(), log.clone());
+
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new(
+            "render",
+            SystemStage::Render,
+            move |_| {
+                l4.lock().unwrap().push("render");
+            },
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "physics",
+            SystemStage::Physics,
+            move |_| {
+                l2.lock().unwrap().push("physics");
+            },
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "input",
+            SystemStage::Input,
+            move |_| {
+                l1.lock().unwrap().push("input");
+            },
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "logic",
+            SystemStage::GameLogic,
+            move |_| {
+                l3.lock().unwrap().push("logic");
+            },
+        )));
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        let order = log.lock().unwrap();
+        assert_eq!(*order, vec!["input", "physics", "logic", "render"]);
+    }
+
+    #[test]
+    fn scheduler_empty() {
+        let mut scheduler = Scheduler::new();
+        let mut world = World::new();
+        scheduler.run(&mut world); // should not panic
+        assert_eq!(scheduler.system_count(), 0);
+    }
+
+    #[test]
+    fn scheduler_multiple_runs() {
+        use std::sync::{Arc, Mutex};
+
+        let count: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
+        let c = count.clone();
+
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new(
+            "counter",
+            SystemStage::GameLogic,
+            move |_| {
+                *c.lock().unwrap() += 1;
+            },
+        )));
+
+        let mut world = World::new();
+        for _ in 0..5 {
+            scheduler.run(&mut world);
+        }
+        assert_eq!(*count.lock().unwrap(), 5);
     }
 }
