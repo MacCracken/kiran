@@ -83,22 +83,30 @@ Kiran does NOT own:
 - 3D position tests (gravity on Z axis, X/Z unchanged)
 - Full 3D physics pipeline verified (register → step → sync)
 
+### V0.5 — Editor (2026-03-23)
+
+- salai scaffolded as separate project at `/home/macro/Repos/salai/`
+- EditorApp with play/pause/step state machine
+- Entity inspector (Name, Position, Light, Tags, Material)
+- Scene hierarchy builder with parent-child tree + depth-first flatten
+- ViewportState with OrbitController, gizmo modes, grid/debug toggles
+- 25 tests (22 unit + 3 integration)
+
 ## Remaining
 
 ### Scripting
 
-- [ ] kavach WASM backend wiring (blocked on kavach wasm feature build)
+- [ ] kavach WASM backend wiring (kavach 0.23.3 wasm feature now builds — ready to wire)
 - [ ] Hot reload for shaders
 
-### V0.5 — Editor
+### V0.5 — Editor (remaining — in salai repo)
 
-- [ ] egui-based visual editor
-- [ ] Entity inspector (view/edit components)
-- [ ] Scene hierarchy tree view
-- [ ] Viewport with gizmos (translate, rotate, scale)
-- [ ] Play/pause/step controls
-- [ ] Scene save/load from editor
-- [ ] Component drag-and-drop (add physics, add AI, add sound)
+- [ ] eframe/egui event loop wiring
+- [ ] Editable inspector fields (not just display)
+- [ ] soorat 3D viewport in egui
+- [ ] Scene save to TOML from editor
+- [ ] Undo/redo stack
+- [ ] Component drag-and-drop
 
 ### V0.6 — Multiplayer
 
