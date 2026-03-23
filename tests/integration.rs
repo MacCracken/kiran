@@ -389,3 +389,124 @@ position = [0.0, 0.0, 0.0]
     let pos = world.get_component::<Position>(player).unwrap();
     assert_eq!(pos.0.x, 10.0);
 }
+
+#[test]
+fn scheduler_scene_input_combined() {
+    use kiran::world::{FnSystem, Scheduler, SystemStage};
+
+    let mut world = World::new();
+
+    // Load scene
+    let scene = load_scene(
+        r#"
+name = "Scheduler Integration"
+[[entities]]
+name = "Player"
+position = [0.0, 0.0, 0.0]
+"#,
+    )
+    .unwrap();
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+    let player = entities[0];
+
+    world.insert_resource(GameClock::with_timestep(1.0 / 60.0));
+    world.insert_resource(kiran::input::InputState::new());
+
+    // Build scheduler with real systems
+    let mut scheduler = Scheduler::new();
+    scheduler.add_system(Box::new(FnSystem::new(
+        "clock_tick",
+        SystemStage::Input,
+        |world: &mut kiran::World| {
+            let clock = world.get_resource_mut::<GameClock>().unwrap();
+            clock.tick(1.0 / 60.0);
+        },
+    )));
+    scheduler.add_system(Box::new(FnSystem::new(
+        "input_clear",
+        SystemStage::Input,
+        |world: &mut kiran::World| {
+            let input = world
+                .get_resource_mut::<kiran::input::InputState>()
+                .unwrap();
+            input.clear_frame();
+        },
+    )));
+
+    // Run 5 frames
+    for _ in 0..5 {
+        scheduler.run(&mut world);
+    }
+
+    let clock = world.get_resource::<GameClock>().unwrap();
+    assert_eq!(clock.frame, 5);
+    assert!(world.is_alive(player));
+}
+
+#[test]
+fn reload_diff_integration() {
+    use kiran::reload::apply_scene_diff;
+
+    let mut world = World::new();
+
+    // Initial scene
+    let scene_v1 = load_scene(
+        r#"
+name = "Reload Test"
+[[entities]]
+name = "Player"
+position = [0.0, 0.0, 0.0]
+[[entities]]
+name = "Enemy"
+position = [10.0, 0.0, 0.0]
+"#,
+    )
+    .unwrap();
+    let entities = spawn_scene(&mut world, &scene_v1).unwrap();
+    assert_eq!(world.entity_count(), 2);
+
+    // Updated scene: player moved, enemy removed, new NPC added
+    let scene_v2 = load_scene(
+        r#"
+name = "Reload Test"
+[[entities]]
+name = "Player"
+position = [5.0, 0.0, 0.0]
+[[entities]]
+name = "NPC"
+position = [20.0, 0.0, 0.0]
+"#,
+    )
+    .unwrap();
+    let result = apply_scene_diff(&mut world, &entities, &scene_v2).unwrap();
+
+    assert_eq!(result.len(), 2);
+    assert_eq!(world.entity_count(), 2);
+
+    // Player was updated in place
+    let player_name = world.get_component::<Name>(result[0]).unwrap();
+    assert_eq!(player_name.0, "Player");
+    let player_pos = world.get_component::<Position>(result[0]).unwrap();
+    assert_eq!(player_pos.0.x, 5.0);
+
+    // NPC is new
+    let npc_name = world.get_component::<Name>(result[1]).unwrap();
+    assert_eq!(npc_name.0, "NPC");
+}
+
+#[test]
+fn entity_from_id_integration() {
+    let mut world = World::new();
+    let e1 = world.spawn();
+    world.despawn(e1).unwrap();
+    let e2 = world.spawn(); // recycled, generation=1
+
+    // Reconstruct from id
+    let reconstructed = kiran::Entity::from_id(e2.id());
+    assert_eq!(reconstructed, e2);
+    assert!(world.is_alive(reconstructed));
+
+    // Old entity id doesn't work
+    let stale = kiran::Entity::from_id(e1.id());
+    assert!(!world.is_alive(stale));
+}

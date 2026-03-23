@@ -1,11 +1,13 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use kiran::World;
 use kiran::input::{InputEvent, InputState, KeyCode, MouseButton};
+use kiran::reload::apply_scene_diff;
 use kiran::render::{
     Camera, DrawCommand, FlyController, FollowController, NullRenderer, OrbitController,
     RenderConfig, Renderer,
 };
 use kiran::scene::{Name, Position, load_scene, spawn_scene};
+use kiran::script::{Script, ScriptEngine, ScriptMessage};
 use kiran::world::{EventBus, FnSystem, GameClock, Scheduler, SystemStage};
 
 // ---------------------------------------------------------------------------
@@ -566,6 +568,113 @@ name = "C9"
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+fn bench_resources(c: &mut Criterion) {
+    let mut group = c.benchmark_group("resources");
+
+    group.bench_function("get_resource", |b| {
+        let mut world = World::new();
+        world.insert_resource(GameClock::with_timestep(1.0 / 60.0));
+        b.iter(|| {
+            black_box(world.get_resource::<GameClock>());
+        })
+    });
+
+    group.bench_function("get_resource_mut", |b| {
+        let mut world = World::new();
+        world.insert_resource(GameClock::with_timestep(1.0 / 60.0));
+        b.iter(|| {
+            black_box(world.get_resource_mut::<GameClock>());
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Scene diff
+// ---------------------------------------------------------------------------
+
+fn bench_reload(c: &mut Criterion) {
+    let mut group = c.benchmark_group("reload");
+
+    group.bench_function("diff_update_10", |b| {
+        let toml_v1 = generate_scene_toml(10);
+        let scene_v1 = load_scene(&toml_v1).unwrap();
+
+        // V2: same entities, different positions
+        let mut toml_v2 = String::from("name = \"Bench Scene\"\n");
+        for i in 0..10 {
+            toml_v2.push_str(&format!(
+                "\n[[entities]]\nname = \"Entity{i}\"\nposition = [{}.0, {}.0, 99.0]\n",
+                i % 10 + 1,
+                i / 10 + 1,
+            ));
+        }
+        let scene_v2 = load_scene(&toml_v2).unwrap();
+
+        b.iter(|| {
+            let mut world = World::new();
+            let entities = spawn_scene(&mut world, &scene_v1).unwrap();
+            apply_scene_diff(&mut world, &entities, black_box(&scene_v2)).unwrap();
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Script messaging
+// ---------------------------------------------------------------------------
+
+fn bench_script(c: &mut Criterion) {
+    let mut group = c.benchmark_group("script");
+
+    group.bench_function("send_100_messages", |b| {
+        let mut engine = ScriptEngine::default();
+        b.iter(|| {
+            for i in 0..100 {
+                engine.send(ScriptMessage::new(
+                    black_box("update"),
+                    black_box(format!("{i}")),
+                ));
+            }
+            engine.drain_inbox();
+        })
+    });
+
+    group.bench_function("run_10_scripted_entities", |b| {
+        b.iter_custom(|iters| {
+            let mut total = std::time::Duration::ZERO;
+            for _ in 0..iters {
+                let mut world = World::new();
+                let mut engine = ScriptEngine::default();
+
+                let mut entities = Vec::new();
+                for i in 0..10 {
+                    let e = world.spawn();
+                    world
+                        .insert_component(e, Script::new(format!("s{i}.wasm")))
+                        .unwrap();
+                    engine.send(ScriptMessage::new("tick", "{}").to_entity(e));
+                    entities.push(e);
+                }
+
+                world.insert_resource(engine);
+                let start = std::time::Instant::now();
+                kiran::script::run_scripts(&mut world);
+                total += start.elapsed();
+            }
+            total
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_world,
@@ -577,5 +686,8 @@ criterion_group!(
     bench_game_loop,
     bench_scheduler,
     bench_hierarchy,
+    bench_resources,
+    bench_reload,
+    bench_script,
 );
 criterion_main!(benches);

@@ -77,6 +77,12 @@ impl Entity {
     pub fn id(self) -> u64 {
         self.0
     }
+
+    /// Reconstruct an entity from a raw u64 id.
+    #[inline]
+    pub fn from_id(id: u64) -> Self {
+        Self(id)
+    }
 }
 
 impl std::fmt::Debug for Entity {
@@ -1065,5 +1071,58 @@ mod tests {
             scheduler.run(&mut world);
         }
         assert_eq!(*count.lock().unwrap(), 5);
+    }
+
+    #[test]
+    fn entity_from_id_roundtrip() {
+        let e = Entity::new(42, 7);
+        let id = e.id();
+        let reconstructed = Entity::from_id(id);
+        assert_eq!(e, reconstructed);
+        assert_eq!(reconstructed.index(), 42);
+        assert_eq!(reconstructed.generation(), 7);
+    }
+
+    #[test]
+    fn get_component_mut_dead_entity() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert_component(e, Health(100)).unwrap();
+        world.despawn(e).unwrap();
+        assert!(world.get_component_mut::<Health>(e).is_none());
+    }
+
+    #[test]
+    fn resource_get_wrong_type() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+        assert!(world.get_resource::<Health>().is_none());
+    }
+
+    #[test]
+    fn world_is_alive() {
+        let mut world = World::new();
+        let e = world.spawn();
+        assert!(world.is_alive(e));
+        world.despawn(e).unwrap();
+        assert!(!world.is_alive(e));
+    }
+
+    #[test]
+    fn remove_component_returns_none_if_missing() {
+        let mut world = World::new();
+        let e = world.spawn();
+        assert!(world.remove_component::<Health>(e).is_none());
+    }
+
+    #[test]
+    fn event_bus_large_batch() {
+        let mut bus = EventBus::new();
+        for i in 0..10000 {
+            bus.publish(ScoreChanged(i));
+        }
+        assert_eq!(bus.count::<ScoreChanged>(), 10000);
+        let events = bus.drain::<ScoreChanged>();
+        assert_eq!(events.len(), 10000);
     }
 }

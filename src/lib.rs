@@ -17,6 +17,9 @@ pub mod audio;
 #[cfg(feature = "physics")]
 pub mod physics;
 
+pub mod reload;
+pub mod script;
+
 // Re-export key types at crate root
 pub use world::{
     Entity, EventBus, FnSystem, GameClock, KiranError, Result, Scheduler, System, SystemStage,

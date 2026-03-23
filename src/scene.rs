@@ -909,4 +909,75 @@ radius = 0.3
         assert_eq!(phys.collider.half_height, Some(0.8));
         assert_eq!(phys.collider.radius, Some(0.3));
     }
+
+    #[test]
+    fn full_featured_entity() {
+        let toml_str = r#"
+name = "Full Feature"
+[[prefabs]]
+name = "base"
+tags = ["prefab-tag"]
+
+[[entities]]
+name = "FullEntity"
+position = [1.0, 2.0, 3.0]
+light_intensity = 0.9
+tags = ["custom-tag"]
+prefab = "base"
+[entities.material]
+color = [1.0, 0.0, 0.0, 1.0]
+texture = "tex.png"
+[entities.sound]
+source = "sound.wav"
+volume = 0.5
+[entities.physics]
+body_type = "dynamic"
+[entities.physics.collider]
+shape = "ball"
+radius = 1.0
+[[entities.children]]
+name = "Child"
+position = [0.0, 1.0, 0.0]
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        let mut world = World::new();
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+
+        assert_eq!(entities.len(), 1); // top-level only
+        assert_eq!(world.entity_count(), 2); // + child
+
+        let e = entities[0];
+        assert_eq!(world.get_component::<Name>(e).unwrap().0, "FullEntity");
+        assert_eq!(
+            world.get_component::<Position>(e).unwrap().0,
+            Vec3::new(1.0, 2.0, 3.0)
+        );
+        assert_eq!(
+            world.get_component::<LightComponent>(e).unwrap().intensity,
+            0.9
+        );
+
+        // Tags merged from entity + prefab
+        let tags = world.get_component::<Tags>(e).unwrap();
+        assert!(tags.0.contains(&"custom-tag".to_string()));
+        assert!(tags.0.contains(&"prefab-tag".to_string()));
+
+        // Material
+        let mat = world.get_component::<Material>(e).unwrap();
+        assert_eq!(mat.color[0], 1.0);
+        assert_eq!(mat.texture.as_deref(), Some("tex.png"));
+
+        // Children
+        let children = world.get_component::<Children>(e).unwrap();
+        assert_eq!(children.0.len(), 1);
+    }
+
+    #[test]
+    fn scene_definition_partial_eq() {
+        let a = load_scene(r#"name = "A""#).unwrap();
+        let b = load_scene(r#"name = "A""#).unwrap();
+        let c = load_scene(r#"name = "C""#).unwrap();
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
 }

@@ -527,4 +527,51 @@ mod tests {
         let expected = target + follow.offset;
         assert!((cam.position - expected).length() > 1.0);
     }
+
+    #[test]
+    fn camera_custom_params() {
+        let cam = Camera {
+            position: Vec3::new(0.0, 0.0, 5.0),
+            target: Vec3::ZERO,
+            up: Vec3::Y,
+            fov_y: 90.0_f32.to_radians(),
+            aspect: 1.0,
+            near: 0.01,
+            far: 100.0,
+        };
+        let vp = cam.view_projection();
+        assert_ne!(vp, Mat4::IDENTITY);
+    }
+
+    #[test]
+    fn sprite_desc_serde() {
+        let sprite = SpriteDesc {
+            texture_id: 42,
+            x: 100.0,
+            y: 200.0,
+            width: 64.0,
+            height: 64.0,
+            rotation: 1.57,
+            color: [1.0, 1.0, 1.0, 1.0],
+        };
+        let json = serde_json::to_string(&sprite).unwrap();
+        let decoded: SpriteDesc = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.texture_id, 42);
+        assert_eq!(decoded.width, 64.0);
+    }
+
+    #[test]
+    fn mesh_desc_serde() {
+        let mesh = MeshDesc {
+            mesh_id: 7,
+            transform: [
+                1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            ],
+            material_id: 3,
+        };
+        let json = serde_json::to_string(&mesh).unwrap();
+        let decoded: MeshDesc = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.mesh_id, 7);
+        assert_eq!(decoded.material_id, 3);
+    }
 }
