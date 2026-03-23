@@ -158,13 +158,14 @@ impl EntityAllocator {
 // World
 // ---------------------------------------------------------------------------
 
-type ComponentMap = HashMap<u64, Box<dyn Any + Send + Sync>>;
+/// Dense component storage indexed by entity index (O(1) access).
+type ComponentVec = Vec<Option<Box<dyn Any + Send + Sync>>>;
 
 /// The central ECS container — entities, components, and resources.
 pub struct World {
     allocator: EntityAllocator,
-    /// component storage: TypeId -> (entity id -> boxed component)
-    components: HashMap<TypeId, ComponentMap>,
+    /// component storage: TypeId -> vec indexed by entity index
+    components: HashMap<TypeId, ComponentVec>,
     /// singleton resources
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
@@ -192,9 +193,11 @@ impl World {
     /// Despawn an entity and remove all its components.
     pub fn despawn(&mut self, entity: Entity) -> Result<()> {
         self.allocator.despawn(entity)?;
-        let eid = entity.id();
+        let idx = entity.index() as usize;
         for storage in self.components.values_mut() {
-            storage.remove(&eid);
+            if idx < storage.len() {
+                storage[idx] = None;
+            }
         }
         Ok(())
     }
@@ -213,25 +216,30 @@ impl World {
         if !self.allocator.is_alive(entity) {
             return Err(KiranError::EntityNotFound(entity));
         }
-        self.components
-            .entry(TypeId::of::<T>())
-            .or_default()
-            .insert(entity.id(), Box::new(component));
+        let idx = entity.index() as usize;
+        let storage = self.components.entry(TypeId::of::<T>()).or_default();
+        if idx >= storage.len() {
+            storage.resize_with(idx + 1, || None);
+        }
+        storage[idx] = Some(Box::new(component));
         Ok(())
     }
 
     /// Check if an entity has a component of the given type.
     pub fn has_component<T: 'static + Send + Sync>(&self, entity: Entity) -> bool {
+        let idx = entity.index() as usize;
         self.components
             .get(&TypeId::of::<T>())
-            .is_some_and(|storage| storage.contains_key(&entity.id()))
+            .is_some_and(|storage| storage.get(idx).is_some_and(|slot| slot.is_some()))
     }
 
     /// Get a reference to an entity's component.
     pub fn get_component<T: 'static + Send + Sync>(&self, entity: Entity) -> Option<&T> {
+        let idx = entity.index() as usize;
         self.components
             .get(&TypeId::of::<T>())?
-            .get(&entity.id())?
+            .get(idx)?
+            .as_ref()?
             .downcast_ref::<T>()
     }
 
@@ -240,16 +248,19 @@ impl World {
         &mut self,
         entity: Entity,
     ) -> Option<&mut T> {
+        let idx = entity.index() as usize;
         self.components
             .get_mut(&TypeId::of::<T>())?
-            .get_mut(&entity.id())?
+            .get_mut(idx)?
+            .as_mut()?
             .downcast_mut::<T>()
     }
 
     /// Remove a component from an entity, returning it if it existed.
     pub fn remove_component<T: 'static + Send + Sync>(&mut self, entity: Entity) -> Option<T> {
+        let idx = entity.index() as usize;
         let storage = self.components.get_mut(&TypeId::of::<T>())?;
-        let boxed = storage.remove(&entity.id())?;
+        let boxed = storage.get_mut(idx)?.take()?;
         boxed.downcast::<T>().ok().map(|b| *b)
     }
 

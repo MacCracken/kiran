@@ -5,71 +5,72 @@ Three-point tracking: **baseline** (first run) / **previous** / **latest**
 | Point | Date | Commit |
 |-------|------|--------|
 | Baseline | 2026-03-23T08:26:15Z | `38d5f28` |
-| Latest | 2026-03-23T08:36:13Z | `38d5f28` |
+| Previous | 2026-03-23T08:36:13Z | `38d5f28` |
+| Latest | 2026-03-23T08:49:17Z | `df1efa5` |
 
 ## world
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `spawn_entity` | 4.95 ns | 4.86 ns |
-| `spawn_despawn` | 5.29 ns | 5.86 ns |
-| `insert_component` | 50.16 ns | 74.48 ns |
-| `get_component` | 33.32 ns | 50.00 ns |
-| `has_component` | — | 43.07 ns |
-| `remove_component` | — | 92.34 ns |
-| `entity_count` | — | 290.30 ps |
-| `spawn_100_entities` | 11.30 µs | 10.48 µs |
-| `despawn_with_components` | — | 11.55 µs |
-| `iterate_components` | — | 38.92 µs |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `spawn_entity` | 4.95 ns | 4.86 ns | 4.70 ns |
+| `spawn_despawn` | 5.29 ns | 5.86 ns | 5.39 ns |
+| `insert_component` | 50.16 ns | 74.48 ns | 31.06 ns |
+| `get_component` | 33.32 ns | 50.00 ns | 14.11 ns |
+| `has_component` | — | 43.07 ns | 11.84 ns |
+| `remove_component` | — | 92.34 ns | 48.76 ns |
+| `entity_count` | — | 290.30 ps | 243.50 ps |
+| `spawn_100_entities` | 11.30 µs | 10.48 µs | 5.17 µs |
+| `despawn_with_components` | — | 11.55 µs | 4.66 µs |
+| `iterate_components` | — | 38.92 µs | 3.46 µs |
 
 ## scene
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `load_10_entities` | 23.40 µs | 25.04 µs |
-| `load_100_entities` | 229.36 µs | 246.65 µs |
-| `spawn_10_entities` | 1.94 µs | 1.96 µs |
-| `spawn_100_entities` | 22.35 µs | 23.54 µs |
-| `scene_serialize` | — | 264.08 µs |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `load_10_entities` | 23.40 µs | 25.04 µs | 21.63 µs |
+| `load_100_entities` | 229.36 µs | 246.65 µs | 221.22 µs |
+| `spawn_10_entities` | 1.94 µs | 1.96 µs | 1.24 µs |
+| `spawn_100_entities` | 22.35 µs | 23.54 µs | 13.37 µs |
+| `scene_serialize` | — | 264.08 µs | 230.44 µs |
 
 ## input
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `process_key_event` | 56.08 ns | 61.78 ns |
-| `query_key_state` | 27.38 ns | 27.23 ns |
-| `clear_frame` | 1.95 ns | 3.15 ns |
-| `process_10_keys` | — | 721.46 ns |
-| `mouse_button_edge` | — | 95.48 ns |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `process_key_event` | 56.08 ns | 61.78 ns | 52.49 ns |
+| `query_key_state` | 27.38 ns | 27.23 ns | 24.18 ns |
+| `clear_frame` | 1.95 ns | 3.15 ns | 2.49 ns |
+| `process_10_keys` | — | 721.46 ns | 603.89 ns |
+| `mouse_button_edge` | — | 95.48 ns | 84.59 ns |
 
 ## render
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `camera_view_projection` | 30.00 ns | 29.57 ns |
-| `null_renderer_frame` | 10.30 ns | 10.64 ns |
-| `null_renderer_10_commands` | — | 75.72 ns |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `camera_view_projection` | 30.00 ns | 29.57 ns | 27.31 ns |
+| `null_renderer_frame` | 10.30 ns | 10.64 ns | 9.96 ns |
+| `null_renderer_10_commands` | — | 75.72 ns | 71.29 ns |
 
 ## clock
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `tick` | 769.60 ps | 783.60 ps |
-| `consume_fixed` | 1.75 ns | 1.82 ns |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `tick` | 769.60 ps | 783.60 ps | 730.40 ps |
+| `consume_fixed` | 1.75 ns | 1.82 ns | 1.73 ns |
 
 ## events
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `publish_100` | 4.17 µs | 4.40 µs |
-| `publish_drain_100` | 4.39 µs | 4.18 µs |
-| `multi_type_publish_drain` | — | 4.57 µs |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `publish_100` | 4.17 µs | 4.40 µs | 3.78 µs |
+| `publish_drain_100` | 4.39 µs | 4.18 µs | 3.75 µs |
+| `multi_type_publish_drain` | — | 4.57 µs | 4.06 µs |
 
 ## game_loop
 
-| Benchmark | Baseline | Latest |
-|-----------|----------|--------|
-| `tick_10_entities` | — | 31.36 ns |
+| Benchmark | Baseline | Previous | Latest |
+|-----------|----------|----------|--------|
+| `tick_10_entities` | — | 31.36 ns | 27.21 ns |
 
 ---
 
