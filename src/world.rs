@@ -167,19 +167,24 @@ impl EntityAllocator {
 /// Dense component storage indexed by entity index (O(1) access).
 type ComponentVec = Vec<Option<Box<dyn Any + Send + Sync>>>;
 
+/// A resource entry: value + change tracking ticks.
+struct ResourceEntry {
+    value: Box<dyn Any + Send + Sync>,
+    /// Tick at which this resource was last mutated.
+    changed_tick: u64,
+    /// Tick at which this resource was last checked via `clear_resource_changed`.
+    last_checked_tick: Option<u64>,
+}
+
 /// The central ECS container — entities, components, and resources.
 pub struct World {
     allocator: EntityAllocator,
     /// component storage: TypeId -> vec indexed by entity index
     components: HashMap<TypeId, ComponentVec>,
-    /// singleton resources
-    resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
-    /// Change tick per resource type (incremented on mutable access).
-    resource_changed: HashMap<TypeId, u64>,
+    /// singleton resources with integrated change tracking (single HashMap lookup)
+    resources: HashMap<TypeId, ResourceEntry>,
     /// Global change tick (incremented via `increment_tick()`).
     tick: u64,
-    /// Tick at which each resource was last checked.
-    resource_last_checked: HashMap<TypeId, u64>,
 }
 
 impl Default for World {
@@ -194,9 +199,7 @@ impl World {
             allocator: EntityAllocator::default(),
             components: HashMap::new(),
             resources: HashMap::new(),
-            resource_changed: HashMap::new(),
             tick: 0,
-            resource_last_checked: HashMap::new(),
         }
     }
 
@@ -281,42 +284,48 @@ impl World {
 
     /// Insert a singleton resource.
     pub fn insert_resource<T: 'static + Send + Sync>(&mut self, resource: T) {
-        let tid = TypeId::of::<T>();
-        self.resources.insert(tid, Box::new(resource));
-        self.resource_changed.insert(tid, self.tick);
+        self.resources.insert(
+            TypeId::of::<T>(),
+            ResourceEntry {
+                value: Box::new(resource),
+                changed_tick: self.tick,
+                last_checked_tick: None,
+            },
+        );
     }
 
     /// Get a reference to a singleton resource.
     pub fn get_resource<T: 'static + Send + Sync>(&self) -> Option<&T> {
-        self.resources.get(&TypeId::of::<T>())?.downcast_ref::<T>()
+        self.resources
+            .get(&TypeId::of::<T>())?
+            .value
+            .downcast_ref::<T>()
     }
 
     /// Get a mutable reference to a singleton resource.
     /// Marks the resource as changed at the current tick.
     pub fn get_resource_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
-        let tid = TypeId::of::<T>();
-        let resource = self.resources.get_mut(&tid)?;
-        // Mark changed before downcast — we know the resource exists
-        self.resource_changed.insert(tid, self.tick);
-        resource.downcast_mut::<T>()
+        let entry = self.resources.get_mut(&TypeId::of::<T>())?;
+        entry.changed_tick = self.tick;
+        entry.value.downcast_mut::<T>()
     }
 
     /// Check if a resource has changed since the last call to `clear_resource_changed`.
     pub fn is_resource_changed<T: 'static + Send + Sync>(&self) -> bool {
-        let tid = TypeId::of::<T>();
-        let Some(&changed) = self.resource_changed.get(&tid) else {
-            return false; // never inserted
+        let Some(entry) = self.resources.get(&TypeId::of::<T>()) else {
+            return false;
         };
-        match self.resource_last_checked.get(&tid) {
-            Some(&checked) => changed > checked,
+        match entry.last_checked_tick {
+            Some(checked) => entry.changed_tick > checked,
             None => true, // never checked → changed
         }
     }
 
     /// Mark a resource as "seen" — future `is_resource_changed` returns false until modified again.
     pub fn clear_resource_changed<T: 'static + Send + Sync>(&mut self) {
-        self.resource_last_checked
-            .insert(TypeId::of::<T>(), self.tick);
+        if let Some(entry) = self.resources.get_mut(&TypeId::of::<T>()) {
+            entry.last_checked_tick = Some(self.tick);
+        }
     }
 
     /// Increment the global change tick. Call once per frame.
