@@ -1,0 +1,12 @@
+/home/macro/Repos/kiran/target/debug/deps/hisab-6ccb42393c3e7f22.d: /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/lib.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/error.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/transforms.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/geo.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/calc.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/num.rs
+
+/home/macro/Repos/kiran/target/debug/deps/libhisab-6ccb42393c3e7f22.rlib: /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/lib.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/error.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/transforms.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/geo.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/calc.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/num.rs
+
+/home/macro/Repos/kiran/target/debug/deps/libhisab-6ccb42393c3e7f22.rmeta: /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/lib.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/error.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/transforms.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/geo.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/calc.rs /home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/num.rs
+
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/lib.rs:
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/error.rs:
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/transforms.rs:
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/geo.rs:
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/calc.rs:
+/home/macro/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/hisab-0.22.3/src/num.rs:
