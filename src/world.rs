@@ -174,6 +174,12 @@ pub struct World {
     components: HashMap<TypeId, ComponentVec>,
     /// singleton resources
     resources: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    /// Change tick per resource type (incremented on mutable access).
+    resource_changed: HashMap<TypeId, u64>,
+    /// Global change tick (incremented via `increment_tick()`).
+    tick: u64,
+    /// Tick at which each resource was last checked.
+    resource_last_checked: HashMap<TypeId, u64>,
 }
 
 impl Default for World {
@@ -188,6 +194,9 @@ impl World {
             allocator: EntityAllocator::default(),
             components: HashMap::new(),
             resources: HashMap::new(),
+            resource_changed: HashMap::new(),
+            tick: 0,
+            resource_last_checked: HashMap::new(),
         }
     }
 
@@ -272,7 +281,9 @@ impl World {
 
     /// Insert a singleton resource.
     pub fn insert_resource<T: 'static + Send + Sync>(&mut self, resource: T) {
-        self.resources.insert(TypeId::of::<T>(), Box::new(resource));
+        let tid = TypeId::of::<T>();
+        self.resources.insert(tid, Box::new(resource));
+        self.resource_changed.insert(tid, self.tick);
     }
 
     /// Get a reference to a singleton resource.
@@ -281,10 +292,42 @@ impl World {
     }
 
     /// Get a mutable reference to a singleton resource.
+    /// Marks the resource as changed at the current tick.
     pub fn get_resource_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
-        self.resources
-            .get_mut(&TypeId::of::<T>())?
-            .downcast_mut::<T>()
+        let tid = TypeId::of::<T>();
+        let resource = self.resources.get_mut(&tid)?.downcast_mut::<T>();
+        if resource.is_some() {
+            self.resource_changed.insert(tid, self.tick);
+        }
+        resource
+    }
+
+    /// Check if a resource has changed since the last call to `clear_resource_changed`.
+    pub fn is_resource_changed<T: 'static + Send + Sync>(&self) -> bool {
+        let tid = TypeId::of::<T>();
+        let Some(&changed) = self.resource_changed.get(&tid) else {
+            return false; // never inserted
+        };
+        match self.resource_last_checked.get(&tid) {
+            Some(&checked) => changed > checked,
+            None => true, // never checked → changed
+        }
+    }
+
+    /// Mark a resource as "seen" — future `is_resource_changed` returns false until modified again.
+    pub fn clear_resource_changed<T: 'static + Send + Sync>(&mut self) {
+        self.resource_last_checked
+            .insert(TypeId::of::<T>(), self.tick);
+    }
+
+    /// Increment the global change tick. Call once per frame.
+    pub fn increment_tick(&mut self) {
+        self.tick += 1;
+    }
+
+    /// Current global tick.
+    pub fn tick(&self) -> u64 {
+        self.tick
     }
 
     /// Number of alive entities.
@@ -1124,5 +1167,87 @@ mod tests {
         assert_eq!(bus.count::<ScoreChanged>(), 10000);
         let events = bus.drain::<ScoreChanged>();
         assert_eq!(events.len(), 10000);
+    }
+
+    // -- Change detection tests --
+
+    #[test]
+    fn resource_change_detection_basic() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+
+        // Just inserted — changed
+        assert!(world.is_resource_changed::<Gravity>());
+
+        // Clear — no longer changed
+        world.clear_resource_changed::<Gravity>();
+        assert!(!world.is_resource_changed::<Gravity>());
+    }
+
+    #[test]
+    fn resource_change_on_mut_access() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+        world.clear_resource_changed::<Gravity>();
+
+        // Mutable access marks changed
+        world.increment_tick();
+        let g = world.get_resource_mut::<Gravity>().unwrap();
+        g.0 = 1.625;
+
+        assert!(world.is_resource_changed::<Gravity>());
+    }
+
+    #[test]
+    fn resource_change_read_only_no_change() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+        world.clear_resource_changed::<Gravity>();
+
+        // Read-only access does NOT mark changed
+        world.increment_tick();
+        let _ = world.get_resource::<Gravity>();
+
+        assert!(!world.is_resource_changed::<Gravity>());
+    }
+
+    #[test]
+    fn resource_change_multi_tick() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+
+        // Tick 0: inserted
+        world.clear_resource_changed::<Gravity>();
+
+        // Tick 1: no mutation → not changed
+        world.increment_tick();
+        assert!(!world.is_resource_changed::<Gravity>());
+
+        // Tick 2: mutate → changed
+        world.increment_tick();
+        world.get_resource_mut::<Gravity>().unwrap().0 = 0.0;
+        assert!(world.is_resource_changed::<Gravity>());
+
+        // Clear and tick 3: not changed
+        world.clear_resource_changed::<Gravity>();
+        world.increment_tick();
+        assert!(!world.is_resource_changed::<Gravity>());
+    }
+
+    #[test]
+    fn resource_change_untracked_type() {
+        let world = World::new();
+        // Never inserted → not changed
+        assert!(!world.is_resource_changed::<Gravity>());
+    }
+
+    #[test]
+    fn world_tick() {
+        let mut world = World::new();
+        assert_eq!(world.tick(), 0);
+        world.increment_tick();
+        assert_eq!(world.tick(), 1);
+        world.increment_tick();
+        assert_eq!(world.tick(), 2);
     }
 }

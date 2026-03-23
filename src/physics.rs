@@ -371,6 +371,75 @@ pub enum PhysicsCollisionEvent {
     Stopped { entity_a: Entity, entity_b: Entity },
 }
 
+// ---------------------------------------------------------------------------
+// Debug rendering
+// ---------------------------------------------------------------------------
+
+/// A debug wireframe shape for visualization.
+#[derive(Debug, Clone)]
+pub struct DebugShape {
+    pub entity: Entity,
+    pub kind: DebugShapeKind,
+    pub position: [f64; 3],
+    pub rotation: f64,
+}
+
+/// The kind of debug wireframe shape.
+#[derive(Debug, Clone)]
+pub enum DebugShapeKind {
+    Circle { radius: f64 },
+    Box { half_extents: [f64; 3] },
+    Capsule { half_height: f64, radius: f64 },
+}
+
+impl PhysicsEngine {
+    /// Generate debug wireframe shapes for all registered colliders.
+    pub fn debug_shapes(&self, world: &World) -> Vec<DebugShape> {
+        let mut shapes = Vec::new();
+
+        for &entity in self.entity_to_body.keys() {
+            let Some(collider) = world.get_component::<Collider>(entity) else {
+                continue;
+            };
+
+            let (position, rotation) = world
+                .get_component::<PhysicsPosition>(entity)
+                .map(|p| (p.position, p.rotation))
+                .unwrap_or(([0.0, 0.0, 0.0], 0.0));
+
+            let kind = match &collider.shape {
+                impetus::ColliderShape::Ball { radius } => {
+                    DebugShapeKind::Circle { radius: *radius }
+                }
+                impetus::ColliderShape::Box { half_extents } => DebugShapeKind::Box {
+                    half_extents: *half_extents,
+                },
+                impetus::ColliderShape::Capsule {
+                    half_height,
+                    radius,
+                } => DebugShapeKind::Capsule {
+                    half_height: *half_height,
+                    radius: *radius,
+                },
+                _ => continue,
+            };
+
+            shapes.push(DebugShape {
+                entity,
+                kind,
+                position,
+                rotation,
+            });
+        }
+
+        shapes
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Raycast result
+// ---------------------------------------------------------------------------
+
 /// Result of a raycast query, mapped to kiran entity IDs.
 #[derive(Debug, Clone)]
 pub struct RaycastHit {
@@ -572,5 +641,339 @@ mod tests {
         engine.apply_force(e, impetus::Force::new(10.0, 0.0, 0.0));
         engine.apply_impulse(e, impetus::Impulse::new(0.0, 5.0, 0.0));
         engine.physics.step();
+    }
+
+    #[test]
+    fn entity_count() {
+        let mut engine = PhysicsEngine::new();
+        assert_eq!(engine.entity_count(), 0);
+
+        let e1 = test_entity(1);
+        engine.register(
+            e1,
+            &RigidBody::dynamic(),
+            &PhysicsPosition::default(),
+            &Collider::ball(1.0),
+        );
+        assert_eq!(engine.entity_count(), 1);
+
+        let e2 = test_entity(2);
+        engine.register(
+            e2,
+            &RigidBody::fixed(),
+            &PhysicsPosition::default(),
+            &Collider::cuboid(1.0, 1.0, 1.0),
+        );
+        assert_eq!(engine.entity_count(), 2);
+
+        engine.unregister(e1);
+        assert_eq!(engine.entity_count(), 1);
+    }
+
+    #[test]
+    fn debug_shapes_basic() {
+        let mut world = World::new();
+        let mut engine = PhysicsEngine::new();
+
+        let e = world.spawn();
+        let rb = RigidBody::dynamic();
+        let col = Collider::ball(2.0);
+        let pos = PhysicsPosition {
+            position: [5.0, 10.0, 0.0],
+            rotation: 0.5,
+        };
+
+        world.insert_component(e, col.clone()).unwrap();
+        world.insert_component(e, pos.clone()).unwrap();
+
+        engine.register(e, &rb, &pos, &col);
+        world.insert_resource(engine);
+
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        let shapes = engine.debug_shapes(&world);
+        assert_eq!(shapes.len(), 1);
+        assert_eq!(shapes[0].entity, e);
+        assert_eq!(shapes[0].position, [5.0, 10.0, 0.0]);
+
+        match &shapes[0].kind {
+            DebugShapeKind::Circle { radius } => assert_eq!(*radius, 2.0),
+            _ => panic!("expected circle"),
+        }
+    }
+
+    #[test]
+    fn debug_shapes_multiple_types() {
+        let mut world = World::new();
+        let mut engine = PhysicsEngine::new();
+
+        // Ball
+        let e1 = world.spawn();
+        let rb1 = RigidBody::dynamic();
+        let col1 = Collider::ball(1.0);
+        let pos1 = PhysicsPosition::default();
+        world.insert_component(e1, col1.clone()).unwrap();
+        world.insert_component(e1, pos1.clone()).unwrap();
+        engine.register(e1, &rb1, &pos1, &col1);
+
+        // Box
+        let e2 = world.spawn();
+        let rb2 = RigidBody::fixed();
+        let col2 = Collider::cuboid(2.0, 3.0, 4.0);
+        let pos2 = PhysicsPosition::default();
+        world.insert_component(e2, col2.clone()).unwrap();
+        world.insert_component(e2, pos2.clone()).unwrap();
+        engine.register(e2, &rb2, &pos2, &col2);
+
+        world.insert_resource(engine);
+
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        let shapes = engine.debug_shapes(&world);
+        assert_eq!(shapes.len(), 2);
+    }
+
+    #[test]
+    fn collider_with_layer_mask() {
+        let col = Collider::ball(1.0).with_layer(0x01).with_mask(0x02);
+        assert_eq!(col.collision_layer, 0x01);
+        assert_eq!(col.collision_mask, 0x02);
+    }
+
+    #[test]
+    fn collider_with_mass_builder() {
+        let col = Collider::ball(1.0).with_mass(5.0);
+        assert_eq!(col.mass, Some(5.0));
+    }
+
+    #[test]
+    fn debug_shapes_capsule() {
+        let mut world = World::new();
+        let mut engine = PhysicsEngine::new();
+
+        let e = world.spawn();
+        let rb = RigidBody::dynamic();
+        let col = Collider::capsule(0.8, 0.3);
+        let pos = PhysicsPosition::default();
+
+        world.insert_component(e, col.clone()).unwrap();
+        world.insert_component(e, pos.clone()).unwrap();
+        engine.register(e, &rb, &pos, &col);
+        world.insert_resource(engine);
+
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        let shapes = engine.debug_shapes(&world);
+        assert_eq!(shapes.len(), 1);
+
+        match &shapes[0].kind {
+            DebugShapeKind::Capsule {
+                half_height,
+                radius,
+            } => {
+                assert_eq!(*half_height, 0.8);
+                assert_eq!(*radius, 0.3);
+            }
+            _ => panic!("expected capsule"),
+        }
+    }
+
+    #[test]
+    fn debug_shapes_empty_engine() {
+        let world = World::new();
+        let engine = PhysicsEngine::new();
+        let shapes = engine.debug_shapes(&world);
+        assert!(shapes.is_empty());
+    }
+
+    #[test]
+    fn debug_shapes_no_collider_component() {
+        let mut world = World::new();
+        let mut engine = PhysicsEngine::new();
+
+        let e = world.spawn();
+        let rb = RigidBody::dynamic();
+        let col = Collider::ball(1.0);
+        let pos = PhysicsPosition::default();
+
+        // Register with engine but don't store Collider as ECS component
+        world.insert_component(e, pos.clone()).unwrap();
+        engine.register(e, &rb, &pos, &col);
+        world.insert_resource(engine);
+
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        let shapes = engine.debug_shapes(&world);
+        // No collider component → no debug shape
+        assert!(shapes.is_empty());
+    }
+
+    #[test]
+    fn raycast_miss() {
+        let engine = PhysicsEngine::new();
+        // No bodies → no hit
+        let hit = engine.raycast([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], 100.0);
+        assert!(hit.is_none());
+    }
+
+    #[test]
+    fn raycast_hit() {
+        let mut engine = PhysicsEngine::new();
+        let e = test_entity(1);
+        engine.register(
+            e,
+            &RigidBody::fixed(),
+            &PhysicsPosition {
+                position: [10.0, 0.0, 0.0],
+                rotation: 0.0,
+            },
+            &Collider::ball(1.0),
+        );
+
+        // Ray from origin toward +x should hit the ball at x=10
+        let hit = engine.raycast([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], 100.0);
+        assert!(hit.is_some());
+        let hit = hit.unwrap();
+        assert_eq!(hit.entity, e);
+        assert!(hit.distance > 0.0);
+        assert!(hit.distance < 100.0);
+    }
+
+    #[test]
+    fn spawn_particle_basic() {
+        let mut engine = PhysicsEngine::new();
+        let _handle = engine.spawn_particle(impetus::Particle::new(
+            [0.0, 10.0, 0.0],
+            [0.0, 0.0, 0.0],
+            5.0,
+        ));
+        // Should not panic
+    }
+
+    #[test]
+    fn physics_step_updates_velocity() {
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+        world.insert_resource(EventBus::new());
+
+        let entity = world.spawn();
+        world
+            .insert_component(
+                entity,
+                PhysicsPosition {
+                    position: [0.0, 10.0, 0.0],
+                    rotation: 0.0,
+                },
+            )
+            .unwrap();
+        world.insert_component(entity, Velocity::default()).unwrap();
+
+        {
+            let engine = world.get_resource_mut::<PhysicsEngine>().unwrap();
+            engine.register(
+                entity,
+                &RigidBody::dynamic(),
+                &PhysicsPosition {
+                    position: [0.0, 10.0, 0.0],
+                    rotation: 0.0,
+                },
+                &Collider::ball(0.5),
+            );
+        }
+
+        // Step once — gravity should give velocity
+        physics_step(&mut world);
+
+        let vel = world.get_component::<Velocity>(entity).unwrap();
+        // Should have negative y velocity (falling)
+        assert!(vel.linear[1] < 0.0, "body should have downward velocity");
+    }
+
+    #[test]
+    fn apply_force_to_nonexistent_entity() {
+        let mut engine = PhysicsEngine::new();
+        let fake = test_entity(999);
+        // Should not panic
+        engine.apply_force(fake, impetus::Force::new(1.0, 0.0, 0.0));
+        engine.apply_impulse(fake, impetus::Impulse::new(0.0, 1.0, 0.0));
+    }
+
+    #[test]
+    fn unregister_nonexistent_entity() {
+        let mut engine = PhysicsEngine::new();
+        let fake = test_entity(999);
+        engine.unregister(fake); // should not panic
+        assert_eq!(engine.entity_count(), 0);
+    }
+
+    #[test]
+    fn lookup_unregistered_entity() {
+        let engine = PhysicsEngine::new();
+        let fake = test_entity(42);
+        assert!(engine.body_handle(fake).is_none());
+        assert!(engine.entity_for_body(impetus::BodyHandle(999)).is_none());
+    }
+
+    #[test]
+    fn static_body_does_not_fall() {
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+        world.insert_resource(EventBus::new());
+
+        let entity = world.spawn();
+        let pos = PhysicsPosition {
+            position: [0.0, 5.0, 0.0],
+            rotation: 0.0,
+        };
+        world.insert_component(entity, pos.clone()).unwrap();
+        world.insert_component(entity, Velocity::default()).unwrap();
+
+        {
+            let engine = world.get_resource_mut::<PhysicsEngine>().unwrap();
+            engine.register(entity, &RigidBody::fixed(), &pos, &Collider::ball(1.0));
+        }
+
+        for _ in 0..60 {
+            physics_step(&mut world);
+        }
+
+        let final_pos = world.get_component::<PhysicsPosition>(entity).unwrap();
+        assert!(
+            (final_pos.position[1] - 5.0).abs() < 0.001,
+            "static body should not move"
+        );
+    }
+
+    #[test]
+    fn physics_step_no_engine_resource() {
+        let mut world = World::new();
+        // No PhysicsEngine resource — should not panic
+        physics_step(&mut world);
+    }
+
+    #[test]
+    fn register_multiple_body_types() {
+        let mut engine = PhysicsEngine::new();
+
+        let e1 = test_entity(1);
+        engine.register(
+            e1,
+            &RigidBody::dynamic(),
+            &PhysicsPosition::default(),
+            &Collider::ball(1.0),
+        );
+        let e2 = test_entity(2);
+        engine.register(
+            e2,
+            &RigidBody::fixed(),
+            &PhysicsPosition::default(),
+            &Collider::cuboid(1.0, 1.0, 1.0),
+        );
+        let e3 = test_entity(3);
+        engine.register(
+            e3,
+            &RigidBody::kinematic(),
+            &PhysicsPosition::default(),
+            &Collider::capsule(0.5, 0.25),
+        );
+
+        assert_eq!(engine.entity_count(), 3);
+        assert_eq!(engine.physics.body_count(), 3);
     }
 }

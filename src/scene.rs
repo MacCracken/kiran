@@ -320,6 +320,49 @@ fn spawn_entity_def(
         let _ = sound; // suppress unused warning when audio feature is off
     }
 
+    // Physics — parse PhysicsDef and register with PhysicsEngine
+    if let Some(phys) = &def.physics {
+        #[cfg(feature = "physics")]
+        {
+            use crate::physics::{Collider, PhysicsEngine, PhysicsPosition, RigidBody};
+
+            let rb = match phys.body_type.as_str() {
+                "static" => RigidBody::fixed(),
+                "kinematic" => RigidBody::kinematic(),
+                _ => RigidBody::dynamic(),
+            };
+
+            let collider = match phys.collider.shape.as_str() {
+                "ball" => Collider::ball(phys.collider.radius.unwrap_or(0.5)),
+                "box" => {
+                    let he = phys.collider.half_extents.unwrap_or([0.5, 0.5, 0.5]);
+                    Collider::cuboid(he[0], he[1], he[2])
+                }
+                "capsule" => Collider::capsule(
+                    phys.collider.half_height.unwrap_or(0.5),
+                    phys.collider.radius.unwrap_or(0.25),
+                ),
+                _ => Collider::ball(0.5),
+            };
+
+            let phys_pos = PhysicsPosition {
+                position: [pos[0] as f64, pos[1] as f64, pos[2] as f64],
+                rotation: 0.0,
+            };
+
+            world.insert_component(entity, rb.clone())?;
+            world.insert_component(entity, collider.clone())?;
+            world.insert_component(entity, phys_pos.clone())?;
+            world.insert_component(entity, crate::physics::Velocity::default())?;
+
+            // Auto-register with PhysicsEngine if present as a resource
+            if let Some(engine) = world.get_resource_mut::<PhysicsEngine>() {
+                engine.register(entity, &rb, &phys_pos, &collider);
+            }
+        }
+        let _ = phys; // suppress unused when physics feature is off
+    }
+
     // Parent-child hierarchy
     if let Some(parent_entity) = parent {
         set_parent(world, entity, parent_entity)?;
@@ -979,5 +1022,81 @@ position = [0.0, 1.0, 0.0]
         let c = load_scene(r#"name = "C""#).unwrap();
         assert_eq!(a, b);
         assert_ne!(a, c);
+    }
+
+    #[cfg(feature = "physics")]
+    #[test]
+    fn toml_driven_physics_spawn() {
+        use crate::physics::{Collider, PhysicsEngine, PhysicsPosition, RigidBody, Velocity};
+
+        let toml_str = r#"
+name = "Physics Spawn"
+[[entities]]
+name = "Ball"
+position = [0.0, 10.0, 0.0]
+[entities.physics]
+body_type = "dynamic"
+[entities.physics.collider]
+shape = "ball"
+radius = 0.5
+
+[[entities]]
+name = "Floor"
+position = [0.0, 0.0, 0.0]
+[entities.physics]
+body_type = "static"
+[entities.physics.collider]
+shape = "box"
+half_extents = [50.0, 0.5, 50.0]
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        assert_eq!(entities.len(), 2);
+
+        // Ball should have physics components
+        let ball = entities[0];
+        assert!(world.has_component::<RigidBody>(ball));
+        assert!(world.has_component::<Collider>(ball));
+        assert!(world.has_component::<PhysicsPosition>(ball));
+        assert!(world.has_component::<Velocity>(ball));
+
+        // Floor too
+        let floor = entities[1];
+        assert!(world.has_component::<RigidBody>(floor));
+
+        // PhysicsEngine should have both registered
+        let engine = world.get_resource::<PhysicsEngine>().unwrap();
+        assert_eq!(engine.entity_count(), 2);
+        assert!(engine.body_handle(ball).is_some());
+        assert!(engine.body_handle(floor).is_some());
+    }
+
+    #[cfg(feature = "physics")]
+    #[test]
+    fn toml_driven_physics_capsule_and_kinematic() {
+        use crate::physics::{PhysicsEngine, RigidBody};
+
+        let toml_str = r#"
+name = "Capsule"
+[[entities]]
+name = "Character"
+position = [5.0, 0.0, 0.0]
+[entities.physics]
+body_type = "kinematic"
+[entities.physics.collider]
+shape = "capsule"
+half_height = 0.8
+radius = 0.3
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        let mut world = World::new();
+        world.insert_resource(PhysicsEngine::new());
+
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        let rb = world.get_component::<RigidBody>(entities[0]).unwrap();
+        assert_eq!(rb.body_type, impetus::BodyType::Kinematic);
     }
 }
