@@ -2,8 +2,8 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use kiran_core::World;
-use kiran_scene::{load_scene, spawn_scene, LightComponent, Name, Position, Tags};
+use kiran::World;
+use kiran::scene::{LightComponent, Name, Position, Tags, load_scene, spawn_scene};
 
 #[derive(Parser)]
 #[command(name = "kiran", version, about = "Kiran — AI-native game engine")]
@@ -61,21 +61,20 @@ fn run_scene(path: &str) -> Result<()> {
             .map(|n| n.0.as_str())
             .unwrap_or("(unnamed)");
         let pos = world.get_component::<Position>(*entity);
-        let has_light = world.get_component::<LightComponent>(*entity).is_some();
+        let light = world.get_component::<LightComponent>(*entity);
         let tags = world.get_component::<Tags>(*entity);
 
         print!("  [{entity}] {name}");
         if let Some(p) = pos {
             print!(" @ ({}, {}, {})", p.0.x, p.0.y, p.0.z);
         }
-        if has_light {
-            let light = world.get_component::<LightComponent>(*entity).unwrap();
-            print!(" light={}", light.intensity);
+        if let Some(l) = light {
+            print!(" light={}", l.intensity);
         }
-        if let Some(t) = tags {
-            if !t.0.is_empty() {
-                print!(" tags=[{}]", t.0.join(", "));
-            }
+        if let Some(t) = tags
+            && !t.0.is_empty()
+        {
+            print!(" tags=[{}]", t.0.join(", "));
         }
         println!();
     }
@@ -90,7 +89,11 @@ fn check_scene(path: &str) -> Result<()> {
 
     println!("Scene '{}' is valid.", scene.name);
     println!("  Entities: {}", scene.entities.len());
-    let lights = scene.entities.iter().filter(|e| e.light_intensity.is_some()).count();
+    let lights = scene
+        .entities
+        .iter()
+        .filter(|e| e.light_intensity.is_some())
+        .count();
     println!("  Lights:   {lights}");
     let tagged = scene.entities.iter().filter(|e| !e.tags.is_empty()).count();
     println!("  Tagged:   {tagged}");

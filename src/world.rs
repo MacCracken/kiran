@@ -1,8 +1,9 @@
-//! kiran-core — ECS, game loop, time management, events
+//! ECS world, generational entity allocator, game clock, event bus
 //!
 //! Provides the fundamental building blocks for the Kiran game engine:
-//! - Entity/Component/System (ECS) world
 //! - Entity allocation with generational indices
+//! - Component storage (type-erased, per-entity)
+//! - Singleton resources
 //! - Typed event bus
 //! - Game clock with fixed timestep support
 
@@ -15,7 +16,7 @@ use thiserror::Error;
 // Errors
 // ---------------------------------------------------------------------------
 
-/// Errors produced by kiran-core.
+/// Errors produced by kiran.
 #[derive(Debug, Error)]
 pub enum KiranError {
     #[error("entity {0:?} does not exist")]
@@ -105,11 +106,14 @@ pub struct EntityAllocator {
     free_list: Vec<u32>,
     /// Tracks which entities are alive.
     alive: Vec<bool>,
+    /// Cached count of alive entities (avoids O(n) scan).
+    alive_count: usize,
 }
 
 impl EntityAllocator {
     /// Allocate a new entity.
     pub fn spawn(&mut self) -> Entity {
+        self.alive_count += 1;
         if let Some(index) = self.free_list.pop() {
             self.alive[index as usize] = true;
             Entity::new(index, self.generations[index as usize])
@@ -132,6 +136,7 @@ impl EntityAllocator {
             return Err(KiranError::EntityDespawned(entity));
         }
         self.alive[idx] = false;
+        self.alive_count -= 1;
         self.generations[idx] += 1;
         self.free_list.push(entity.index());
         Ok(())
@@ -140,14 +145,12 @@ impl EntityAllocator {
     /// Check whether an entity handle is still alive.
     pub fn is_alive(&self, entity: Entity) -> bool {
         let idx = entity.index() as usize;
-        idx < self.alive.len()
-            && self.alive[idx]
-            && self.generations[idx] == entity.generation()
+        idx < self.alive.len() && self.alive[idx] && self.generations[idx] == entity.generation()
     }
 
-    /// Number of currently alive entities.
+    /// Number of currently alive entities (O(1)).
     pub fn alive_count(&self) -> usize {
-        self.alive.iter().filter(|&&a| a).count()
+        self.alive_count
     }
 }
 
@@ -217,6 +220,13 @@ impl World {
         Ok(())
     }
 
+    /// Check if an entity has a component of the given type.
+    pub fn has_component<T: 'static + Send + Sync>(&self, entity: Entity) -> bool {
+        self.components
+            .get(&TypeId::of::<T>())
+            .is_some_and(|storage| storage.contains_key(&entity.id()))
+    }
+
     /// Get a reference to an entity's component.
     pub fn get_component<T: 'static + Send + Sync>(&self, entity: Entity) -> Option<&T> {
         self.components
@@ -237,10 +247,7 @@ impl World {
     }
 
     /// Remove a component from an entity, returning it if it existed.
-    pub fn remove_component<T: 'static + Send + Sync>(
-        &mut self,
-        entity: Entity,
-    ) -> Option<T> {
+    pub fn remove_component<T: 'static + Send + Sync>(&mut self, entity: Entity) -> Option<T> {
         let storage = self.components.get_mut(&TypeId::of::<T>())?;
         let boxed = storage.remove(&entity.id())?;
         boxed.downcast::<T>().ok().map(|b| *b)
@@ -248,15 +255,12 @@ impl World {
 
     /// Insert a singleton resource.
     pub fn insert_resource<T: 'static + Send + Sync>(&mut self, resource: T) {
-        self.resources
-            .insert(TypeId::of::<T>(), Box::new(resource));
+        self.resources.insert(TypeId::of::<T>(), Box::new(resource));
     }
 
     /// Get a reference to a singleton resource.
     pub fn get_resource<T: 'static + Send + Sync>(&self) -> Option<&T> {
-        self.resources
-            .get(&TypeId::of::<T>())?
-            .downcast_ref::<T>()
+        self.resources.get(&TypeId::of::<T>())?.downcast_ref::<T>()
     }
 
     /// Get a mutable reference to a singleton resource.
@@ -371,9 +375,7 @@ impl EventBus {
 
     /// Peek at the count of pending events of a given type.
     pub fn count<E: 'static + Send + Sync>(&self) -> usize {
-        self.channels
-            .get(&TypeId::of::<E>())
-            .map_or(0, |v| v.len())
+        self.channels.get(&TypeId::of::<E>()).map_or(0, |v| v.len())
     }
 
     /// Clear all events across all types.
@@ -653,5 +655,126 @@ mod tests {
         bus.clear();
         assert_eq!(bus.count::<Collision>(), 0);
         assert_eq!(bus.count::<ScoreChanged>(), 0);
+    }
+
+    // -- Stress / edge case tests --
+
+    #[test]
+    fn stress_spawn_despawn_1000() {
+        let mut world = World::new();
+        let mut entities = Vec::new();
+        for _ in 0..1000 {
+            entities.push(world.spawn());
+        }
+        assert_eq!(world.entity_count(), 1000);
+
+        // Despawn odd-indexed
+        for i in (1..1000).step_by(2) {
+            world.despawn(entities[i]).unwrap();
+        }
+        assert_eq!(world.entity_count(), 500);
+
+        // Respawn into recycled slots
+        for _ in 0..500 {
+            let e = world.spawn();
+            assert_eq!(e.generation(), 1); // recycled
+        }
+        assert_eq!(world.entity_count(), 1000);
+    }
+
+    #[test]
+    fn has_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+        assert!(!world.has_component::<Health>(e));
+        world.insert_component(e, Health(42)).unwrap();
+        assert!(world.has_component::<Health>(e));
+        world.remove_component::<Health>(e);
+        assert!(!world.has_component::<Health>(e));
+    }
+
+    #[test]
+    fn resource_replacement() {
+        let mut world = World::new();
+        world.insert_resource(Gravity(9.81));
+        assert_eq!(world.get_resource::<Gravity>().unwrap().0, 9.81);
+
+        world.insert_resource(Gravity(1.625));
+        assert_eq!(world.get_resource::<Gravity>().unwrap().0, 1.625);
+    }
+
+    #[test]
+    fn clock_spike_frame() {
+        let mut clock = GameClock::with_timestep(1.0 / 60.0);
+        clock.tick(0.5); // 500ms spike — 30 fixed steps pending
+        assert_eq!(clock.pending_fixed_steps(), 30);
+        let mut count = 0;
+        while clock.consume_fixed() {
+            count += 1;
+        }
+        assert_eq!(count, 30);
+    }
+
+    #[test]
+    fn clock_zero_dt() {
+        let mut clock = GameClock::default();
+        clock.tick(0.0);
+        assert_eq!(clock.frame, 1);
+        assert_eq!(clock.delta, 0.0);
+        assert!(!clock.consume_fixed());
+    }
+
+    #[test]
+    fn event_bus_publish_after_drain() {
+        let mut bus = EventBus::new();
+        bus.publish(ScoreChanged(1));
+        let _ = bus.drain::<ScoreChanged>();
+        assert_eq!(bus.count::<ScoreChanged>(), 0);
+
+        bus.publish(ScoreChanged(2));
+        assert_eq!(bus.count::<ScoreChanged>(), 1);
+        let events = bus.drain::<ScoreChanged>();
+        assert_eq!(events[0].0, 2);
+    }
+
+    #[test]
+    fn entity_boundary_values() {
+        let e = Entity::new(u32::MAX, u32::MAX);
+        assert_eq!(e.index(), u32::MAX);
+        assert_eq!(e.generation(), u32::MAX);
+
+        let e_zero = Entity::new(0, 0);
+        assert_eq!(e_zero.id(), 0);
+    }
+
+    #[test]
+    fn world_component_overwrite() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert_component(e, Health(100)).unwrap();
+        world.insert_component(e, Health(200)).unwrap();
+        assert_eq!(world.get_component::<Health>(e).unwrap().0, 200);
+    }
+
+    #[test]
+    fn alive_count_consistency() {
+        let mut alloc = EntityAllocator::default();
+        assert_eq!(alloc.alive_count(), 0);
+
+        let e0 = alloc.spawn();
+        let e1 = alloc.spawn();
+        let e2 = alloc.spawn();
+        assert_eq!(alloc.alive_count(), 3);
+
+        alloc.despawn(e1).unwrap();
+        assert_eq!(alloc.alive_count(), 2);
+
+        alloc.despawn(e0).unwrap();
+        alloc.despawn(e2).unwrap();
+        assert_eq!(alloc.alive_count(), 0);
+
+        // Respawn and verify
+        let _ = alloc.spawn();
+        assert_eq!(alloc.alive_count(), 1);
     }
 }

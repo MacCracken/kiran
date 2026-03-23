@@ -1,18 +1,19 @@
-//! kiran-scene — TOML scene format, loading, entity spawning
+//! TOML scene format, loading, entity spawning
 //!
 //! Defines the scene file format and provides helpers to load scenes from
-//! TOML strings and spawn their entities into a [`kiran_core::World`].
+//! TOML strings and spawn their entities into a [`World`](crate::World).
 
 use glam::Vec3;
-use kiran_core::{Entity, KiranError, World};
 use serde::{Deserialize, Serialize};
+
+use crate::world::{Entity, KiranError, World};
 
 // ---------------------------------------------------------------------------
 // Scene definitions (serde + TOML)
 // ---------------------------------------------------------------------------
 
 /// A full scene file, loaded from TOML.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SceneDefinition {
     /// Display name of the scene.
     pub name: String,
@@ -25,7 +26,7 @@ pub struct SceneDefinition {
 }
 
 /// Definition of a single entity inside a scene file.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntityDef {
     /// Entity name (used as the [`Name`] component).
     pub name: String,
@@ -74,10 +75,7 @@ pub fn load_scene(toml_str: &str) -> Result<SceneDefinition, KiranError> {
 /// Spawn all entities from a scene definition into a world.
 ///
 /// Returns the list of spawned [`Entity`] handles.
-pub fn spawn_scene(
-    world: &mut World,
-    scene: &SceneDefinition,
-) -> Result<Vec<Entity>, KiranError> {
+pub fn spawn_scene(world: &mut World, scene: &SceneDefinition) -> Result<Vec<Entity>, KiranError> {
     let mut spawned = Vec::with_capacity(scene.entities.len());
 
     for def in &scene.entities {
@@ -235,6 +233,25 @@ position = [0.0, 0.0, 0.0]
         let mut world = World::new();
         let entities = spawn_scene(&mut world, &scene).unwrap();
         assert!(world.get_component::<Tags>(entities[0]).is_none());
+    }
+
+    #[test]
+    fn unicode_entity_names() {
+        let toml_str = r#"
+name = "ユニコード"
+[[entities]]
+name = "主人公"
+position = [0.0, 0.0, 0.0]
+tags = ["プレイヤー"]
+"#;
+        let scene = load_scene(toml_str).unwrap();
+        assert_eq!(scene.name, "ユニコード");
+        assert_eq!(scene.entities[0].name, "主人公");
+
+        let mut world = World::new();
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        let name = world.get_component::<Name>(entities[0]).unwrap();
+        assert_eq!(name.0, "主人公");
     }
 
     #[test]

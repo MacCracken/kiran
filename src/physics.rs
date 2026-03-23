@@ -1,32 +1,13 @@
-//! # kiran-physics — Impetus bridge for Kiran ECS
+//! Impetus physics engine bridge
 //!
-//! Connects the impetus physics engine to kiran-core's ECS. Provides:
-//! - Physics components (`RigidBody`, `Collider`, `PhysicsBody`)
+//! Connects the impetus physics engine to kiran's ECS. Provides:
+//! - Physics components (`RigidBody`, `Collider`, `Velocity`, `PhysicsPosition`)
 //! - A `PhysicsEngine` resource wrapping `impetus::PhysicsWorld`
 //! - A `physics_step` system function for the game loop
-//! - Automatic sync between kiran `Position` and impetus body state
-//!
-//! ## Usage
-//!
-//! ```ignore
-//! use kiran_physics::{PhysicsEngine, RigidBody, Collider, physics_step};
-//!
-//! // Store impetus world as a kiran resource
-//! world.insert_resource(PhysicsEngine::new());
-//!
-//! // Spawn entity with physics
-//! let entity = world.spawn();
-//! world.insert_component(entity, Position(Vec3::new(0.0, 10.0, 0.0))).unwrap();
-//! world.insert_component(entity, RigidBody::dynamic()).unwrap();
-//! world.insert_component(entity, Collider::ball(0.5)).unwrap();
-//!
-//! // In game loop:
-//! physics_step(&mut world, dt);
-//! ```
 
 use std::collections::HashMap;
 
-use kiran_core::{Entity, World};
+use crate::world::{Entity, EventBus, World};
 
 // ---------------------------------------------------------------------------
 // Physics components (stored on kiran entities)
@@ -101,6 +82,8 @@ pub struct Collider {
     pub material: impetus::PhysicsMaterial,
     pub is_sensor: bool,
     pub mass: Option<f64>,
+    pub collision_layer: u32,
+    pub collision_mask: u32,
 }
 
 impl Collider {
@@ -111,6 +94,8 @@ impl Collider {
             material: impetus::PhysicsMaterial::default(),
             is_sensor: false,
             mass: None,
+            collision_layer: 0xFFFF_FFFF,
+            collision_mask: 0xFFFF_FFFF,
         }
     }
 
@@ -123,6 +108,8 @@ impl Collider {
             material: impetus::PhysicsMaterial::default(),
             is_sensor: false,
             mass: None,
+            collision_layer: 0xFFFF_FFFF,
+            collision_mask: 0xFFFF_FFFF,
         }
     }
 
@@ -136,6 +123,8 @@ impl Collider {
             material: impetus::PhysicsMaterial::default(),
             is_sensor: false,
             mass: None,
+            collision_layer: 0xFFFF_FFFF,
+            collision_mask: 0xFFFF_FFFF,
         }
     }
 
@@ -158,6 +147,16 @@ impl Collider {
         self.mass = Some(mass);
         self
     }
+
+    pub fn with_layer(mut self, layer: u32) -> Self {
+        self.collision_layer = layer;
+        self
+    }
+
+    pub fn with_mask(mut self, mask: u32) -> Self {
+        self.collision_mask = mask;
+        self
+    }
 }
 
 /// Velocity component — readable/writable linear and angular velocity.
@@ -168,8 +167,7 @@ pub struct Velocity {
 }
 
 // ---------------------------------------------------------------------------
-// Position component (kiran-scene already has one, but it uses glam::Vec3 f32)
-// We use f64 arrays matching impetus's API.
+// Position component (f64 precision for physics)
 // ---------------------------------------------------------------------------
 
 /// Physics position — f64 precision. Updated by the physics engine each step.
@@ -196,12 +194,14 @@ impl Default for PhysicsPosition {
 /// Stored as a kiran resource via `world.insert_resource(PhysicsEngine::new())`.
 pub struct PhysicsEngine {
     pub physics: impetus::PhysicsWorld,
-    /// Maps kiran entity → impetus BodyHandle
+    /// Maps kiran entity -> impetus BodyHandle
     entity_to_body: HashMap<Entity, impetus::BodyHandle>,
-    /// Maps impetus BodyHandle → kiran entity
+    /// Maps impetus BodyHandle -> kiran entity
     body_to_entity: HashMap<impetus::BodyHandle, Entity>,
-    /// Maps kiran entity → impetus ColliderHandle
+    /// Maps kiran entity -> impetus ColliderHandle
     entity_to_collider: HashMap<Entity, impetus::ColliderHandle>,
+    /// Maps impetus ColliderHandle -> kiran entity (reverse lookup, O(1))
+    collider_to_entity: HashMap<impetus::ColliderHandle, Entity>,
 }
 
 impl PhysicsEngine {
@@ -217,12 +217,18 @@ impl PhysicsEngine {
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
             entity_to_collider: HashMap::new(),
+            collider_to_entity: HashMap::new(),
         }
     }
 
     /// Register a kiran entity with the physics engine.
-    /// Call this after inserting RigidBody + Collider components.
-    pub fn register(&mut self, entity: Entity, rb: &RigidBody, pos: &PhysicsPosition, collider: &Collider) {
+    pub fn register(
+        &mut self,
+        entity: Entity,
+        rb: &RigidBody,
+        pos: &PhysicsPosition,
+        collider: &Collider,
+    ) {
         let body_handle = self.physics.add_body(impetus::BodyDesc {
             body_type: rb.body_type,
             position: pos.position,
@@ -243,12 +249,15 @@ impl PhysicsEngine {
                 material: collider.material.clone(),
                 is_sensor: collider.is_sensor,
                 mass: collider.mass,
+                collision_layer: collider.collision_layer,
+                collision_mask: collider.collision_mask,
             },
         );
 
         self.entity_to_body.insert(entity, body_handle);
         self.body_to_entity.insert(body_handle, entity);
         self.entity_to_collider.insert(entity, collider_handle);
+        self.collider_to_entity.insert(collider_handle, entity);
     }
 
     /// Unregister a kiran entity from the physics engine.
@@ -257,7 +266,14 @@ impl PhysicsEngine {
             let _ = self.physics.remove_body(body_handle);
             self.body_to_entity.remove(&body_handle);
         }
-        self.entity_to_collider.remove(&entity);
+        if let Some(collider_handle) = self.entity_to_collider.remove(&entity) {
+            self.collider_to_entity.remove(&collider_handle);
+        }
+    }
+
+    /// Number of registered entities.
+    pub fn entity_count(&self) -> usize {
+        self.entity_to_body.len()
     }
 
     /// Apply a force to an entity's physics body.
@@ -296,10 +312,7 @@ impl PhysicsEngine {
                 } => {
                     let entity_a = self.find_entity_for_collider(*collider_a)?;
                     let entity_b = self.find_entity_for_collider(*collider_b)?;
-                    Some(PhysicsCollisionEvent::Started {
-                        entity_a,
-                        entity_b,
-                    })
+                    Some(PhysicsCollisionEvent::Started { entity_a, entity_b })
                 }
                 impetus::CollisionEvent::Stopped {
                     collider_a,
@@ -307,10 +320,7 @@ impl PhysicsEngine {
                 } => {
                     let entity_a = self.find_entity_for_collider(*collider_a)?;
                     let entity_b = self.find_entity_for_collider(*collider_b)?;
-                    Some(PhysicsCollisionEvent::Stopped {
-                        entity_a,
-                        entity_b,
-                    })
+                    Some(PhysicsCollisionEvent::Stopped { entity_a, entity_b })
                 }
                 _ => None,
             })
@@ -318,10 +328,7 @@ impl PhysicsEngine {
     }
 
     fn find_entity_for_collider(&self, collider: impetus::ColliderHandle) -> Option<Entity> {
-        self.entity_to_collider
-            .iter()
-            .find(|(_, ch)| **ch == collider)
-            .map(|(eid, _)| *eid)
+        self.collider_to_entity.get(&collider).copied()
     }
 }
 
@@ -351,7 +358,7 @@ pub enum PhysicsCollisionEvent {
 /// Call this from your game loop:
 /// ```ignore
 /// while clock.consume_fixed() {
-///     physics_step(&mut world, clock.fixed_timestep);
+///     physics_step(&mut world);
 /// }
 /// ```
 pub fn physics_step(world: &mut World) {
@@ -367,7 +374,6 @@ pub fn physics_step(world: &mut World) {
         let events = engine.collision_events();
 
         // Read back positions from impetus into a buffer
-        // (can't mutate world components while borrowing engine)
         type BodyUpdate = (Entity, [f64; 3], f64, [f64; 3], f64);
         let updates: Vec<BodyUpdate> = engine
             .entity_to_body
@@ -400,7 +406,7 @@ pub fn physics_step(world: &mut World) {
     };
 
     // Publish collision events to kiran event bus
-    if let Some(bus) = world.get_resource_mut::<kiran_core::EventBus>() {
+    if let Some(bus) = world.get_resource_mut::<EventBus>() {
         for event in events {
             bus.publish(event);
         }
@@ -410,7 +416,6 @@ pub fn physics_step(world: &mut World) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kiran_core::World;
 
     #[test]
     fn create_physics_engine() {
@@ -427,21 +432,34 @@ mod tests {
         let mut engine = PhysicsEngine::new();
         let e = test_entity(42);
 
-        engine.register(e, &RigidBody::dynamic(), &PhysicsPosition {
-            position: [0.0, 10.0, 0.0],
-            rotation: 0.0,
-        }, &Collider::ball(0.5));
+        engine.register(
+            e,
+            &RigidBody::dynamic(),
+            &PhysicsPosition {
+                position: [0.0, 10.0, 0.0],
+                rotation: 0.0,
+            },
+            &Collider::ball(0.5),
+        );
 
         assert_eq!(engine.physics.body_count(), 1);
         assert!(engine.body_handle(e).is_some());
-        assert_eq!(engine.entity_for_body(engine.body_handle(e).unwrap()), Some(e));
+        assert_eq!(
+            engine.entity_for_body(engine.body_handle(e).unwrap()),
+            Some(e)
+        );
     }
 
     #[test]
     fn unregister_entity() {
         let mut engine = PhysicsEngine::new();
         let e = test_entity(1);
-        engine.register(e, &RigidBody::dynamic(), &PhysicsPosition::default(), &Collider::ball(1.0));
+        engine.register(
+            e,
+            &RigidBody::dynamic(),
+            &PhysicsPosition::default(),
+            &Collider::ball(1.0),
+        );
         assert_eq!(engine.physics.body_count(), 1);
 
         engine.unregister(e);
@@ -453,25 +471,31 @@ mod tests {
     fn physics_step_updates_position() {
         let mut world = World::new();
         world.insert_resource(PhysicsEngine::new());
-        world.insert_resource(kiran_core::EventBus::new());
+        world.insert_resource(EventBus::new());
 
         let entity = world.spawn();
         world
-            .insert_component(entity, PhysicsPosition {
-                position: [0.0, 10.0, 0.0],
-                rotation: 0.0,
-            })
+            .insert_component(
+                entity,
+                PhysicsPosition {
+                    position: [0.0, 10.0, 0.0],
+                    rotation: 0.0,
+                },
+            )
             .unwrap();
-        world
-            .insert_component(entity, Velocity::default())
-            .unwrap();
+        world.insert_component(entity, Velocity::default()).unwrap();
 
         {
             let engine = world.get_resource_mut::<PhysicsEngine>().unwrap();
-            engine.register(entity, &RigidBody::dynamic(), &PhysicsPosition {
-                position: [0.0, 10.0, 0.0],
-                rotation: 0.0,
-            }, &Collider::ball(0.5));
+            engine.register(
+                entity,
+                &RigidBody::dynamic(),
+                &PhysicsPosition {
+                    position: [0.0, 10.0, 0.0],
+                    rotation: 0.0,
+                },
+                &Collider::ball(0.5),
+            );
         }
 
         for _ in 0..60 {
@@ -479,7 +503,10 @@ mod tests {
         }
 
         let pos = world.get_component::<PhysicsPosition>(entity).unwrap();
-        assert!(pos.position[1] < 10.0, "body should have fallen under gravity");
+        assert!(
+            pos.position[1] < 10.0,
+            "body should have fallen under gravity"
+        );
     }
 
     #[test]
@@ -504,7 +531,12 @@ mod tests {
     fn apply_force_to_entity() {
         let mut engine = PhysicsEngine::new();
         let e = test_entity(1);
-        engine.register(e, &RigidBody::dynamic(), &PhysicsPosition::default(), &Collider::ball(1.0));
+        engine.register(
+            e,
+            &RigidBody::dynamic(),
+            &PhysicsPosition::default(),
+            &Collider::ball(1.0),
+        );
 
         engine.apply_force(e, impetus::Force::new(10.0, 0.0, 0.0));
         engine.apply_impulse(e, impetus::Impulse::new(0.0, 5.0, 0.0));

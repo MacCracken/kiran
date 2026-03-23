@@ -1,4 +1,4 @@
-//! kiran-render — Rendering abstraction, headless mode
+//! Rendering abstraction, headless mode
 //!
 //! Defines the rendering trait, camera with view/projection matrices,
 //! sprite/mesh descriptors, and a headless [`NullRenderer`] for testing.
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 // ---------------------------------------------------------------------------
 
 /// Rendering configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenderConfig {
     pub width: u32,
     pub height: u32,
@@ -210,7 +210,6 @@ mod tests {
         let cam = Camera::default();
         let view = cam.view_matrix();
         let proj = cam.projection_matrix();
-        // Both should be non-zero, non-identity
         assert_ne!(view, Mat4::IDENTITY);
         assert_ne!(proj, Mat4::IDENTITY);
     }
@@ -271,6 +270,21 @@ mod tests {
         r.init(&RenderConfig::default()).unwrap();
         r.shutdown().unwrap();
         assert!(!r.initialized);
+    }
+
+    #[test]
+    fn null_renderer_end_frame_without_begin() {
+        let mut r = NullRenderer::new();
+        r.init(&RenderConfig::default()).unwrap();
+        assert!(r.end_frame().is_err());
+    }
+
+    #[test]
+    fn render_config_serde_roundtrip() {
+        let cfg = RenderConfig::default();
+        let json = serde_json::to_string(&cfg).unwrap();
+        let decoded: RenderConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(cfg, decoded);
     }
 
     #[test]

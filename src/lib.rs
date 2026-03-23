@@ -1,9 +1,18 @@
-//! Kiran — AI-native game engine
+//! Kiran — AI-native game engine for AGNOS
 //!
-//! Re-exports the sub-crates that compose the engine.
+//! Modular game engine built in Rust. Composes AGNOS shared crates for
+//! physics (impetus), math (hisab), audio (dhvani), and rendering (aethersafta).
 
-pub use kiran_core as core;
-pub use kiran_input as input;
-pub use kiran_physics as physics;
-pub use kiran_render as render;
-pub use kiran_scene as scene;
+pub mod input;
+pub mod render;
+pub mod scene;
+pub mod world;
+
+#[cfg(feature = "ai")]
+pub mod ai;
+
+#[cfg(feature = "physics")]
+pub mod physics;
+
+// Re-export key types at crate root
+pub use world::{Entity, EventBus, GameClock, KiranError, Result, World};

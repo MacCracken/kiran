@@ -1,0 +1,380 @@
+//! Integration tests exercising cross-module usage.
+
+use kiran::World;
+use kiran::input::{InputEvent, InputState, KeyCode, MouseButton};
+use kiran::render::{Camera, DrawCommand, NullRenderer, RenderConfig, Renderer};
+use kiran::scene::{LightComponent, Name, Position, Tags, load_scene, spawn_scene};
+use kiran::world::{EventBus, GameClock};
+
+#[test]
+fn scene_load_spawn_query() {
+    let toml_str = r#"
+name = "Integration Test"
+description = "Cross-module test scene"
+
+[[entities]]
+name = "Hero"
+position = [5.0, 0.0, 3.0]
+tags = ["player", "controllable"]
+
+[[entities]]
+name = "Torch"
+position = [0.0, 2.0, 0.0]
+light_intensity = 0.8
+
+[[entities]]
+name = "Boulder"
+position = [10.0, 0.0, -5.0]
+"#;
+
+    let scene = load_scene(toml_str).unwrap();
+    let mut world = World::new();
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+
+    assert_eq!(world.entity_count(), 3);
+
+    // Verify hero
+    let hero = entities[0];
+    assert_eq!(world.get_component::<Name>(hero).unwrap().0, "Hero");
+    let pos = world.get_component::<Position>(hero).unwrap();
+    assert_eq!(pos.0.x, 5.0);
+    let tags = world.get_component::<Tags>(hero).unwrap();
+    assert!(tags.0.contains(&"player".to_string()));
+
+    // Verify torch has light
+    let torch = entities[1];
+    let light = world.get_component::<LightComponent>(torch).unwrap();
+    assert!((light.intensity - 0.8).abs() < f32::EPSILON);
+
+    // Verify boulder has no light or tags
+    let boulder = entities[2];
+    assert!(world.get_component::<LightComponent>(boulder).is_none());
+    assert!(world.get_component::<Tags>(boulder).is_none());
+}
+
+#[test]
+fn world_lifecycle_spawn_despawn() {
+    let mut world = World::new();
+
+    // Spawn entities
+    let e1 = world.spawn();
+    let e2 = world.spawn();
+    let e3 = world.spawn();
+    assert_eq!(world.entity_count(), 3);
+
+    // Add components
+    world.insert_component(e1, Name("A".into())).unwrap();
+    world.insert_component(e2, Name("B".into())).unwrap();
+    world.insert_component(e3, Name("C".into())).unwrap();
+
+    // Despawn middle entity
+    world.despawn(e2).unwrap();
+    assert_eq!(world.entity_count(), 2);
+    assert!(world.get_component::<Name>(e2).is_none());
+
+    // Remaining entities still have components
+    assert_eq!(world.get_component::<Name>(e1).unwrap().0, "A");
+    assert_eq!(world.get_component::<Name>(e3).unwrap().0, "C");
+
+    // Recycled entity gets new generation
+    let e4 = world.spawn();
+    assert_eq!(e4.index(), e2.index()); // reuses slot
+    assert_eq!(e4.generation(), 1); // bumped generation
+}
+
+#[test]
+fn clock_drives_fixed_updates() {
+    let mut clock = GameClock::with_timestep(1.0 / 60.0);
+    let mut fixed_count = 0;
+
+    // Simulate 100ms at 16.67ms per frame (6 frames)
+    for _ in 0..6 {
+        clock.tick(1.0 / 60.0);
+        while clock.consume_fixed() {
+            fixed_count += 1;
+        }
+    }
+
+    assert_eq!(fixed_count, 6);
+    assert_eq!(clock.frame, 6);
+    assert!((clock.elapsed - 6.0 / 60.0).abs() < 1e-10);
+}
+
+#[test]
+fn input_state_multi_frame() {
+    let mut state = InputState::new();
+
+    // Frame 1: press W and Space
+    state.process_event(&InputEvent::KeyPressed(KeyCode::W));
+    state.process_event(&InputEvent::KeyPressed(KeyCode::Space));
+    assert!(state.is_key_just_pressed(KeyCode::W));
+    assert!(state.is_key_pressed(KeyCode::Space));
+
+    // Frame 2: W still held, Space released
+    state.clear_frame();
+    state.process_event(&InputEvent::KeyReleased(KeyCode::Space));
+    assert!(state.is_key_pressed(KeyCode::W));
+    assert!(!state.is_key_just_pressed(KeyCode::W)); // not "just" anymore
+    assert!(state.is_key_just_released(KeyCode::Space));
+
+    // Frame 3: mouse input
+    state.clear_frame();
+    state.process_event(&InputEvent::MouseMoved { x: 640.0, y: 360.0 });
+    state.process_event(&InputEvent::MouseButtonPressed(MouseButton::Left));
+    assert_eq!(state.mouse_position(), (640.0, 360.0));
+    assert!(state.is_mouse_button_pressed(MouseButton::Left));
+}
+
+#[test]
+fn null_renderer_full_frame() {
+    let mut renderer = NullRenderer::new();
+    renderer.init(&RenderConfig::default()).unwrap();
+
+    let camera = Camera::default();
+
+    renderer.begin_frame().unwrap();
+    renderer
+        .submit(DrawCommand::Clear([0.1, 0.1, 0.2, 1.0]))
+        .unwrap();
+    renderer.submit(DrawCommand::SetCamera(camera)).unwrap();
+    renderer.end_frame().unwrap();
+
+    assert_eq!(renderer.frame_count, 1);
+    assert_eq!(renderer.last_frame_command_count(), 2);
+
+    renderer.shutdown().unwrap();
+    assert!(!renderer.initialized);
+}
+
+#[test]
+fn event_bus_cross_system() {
+    #[derive(Debug, PartialEq)]
+    struct DamageEvent {
+        target: u64,
+        amount: f32,
+    }
+
+    #[derive(Debug, PartialEq)]
+    struct DeathEvent {
+        entity: u64,
+    }
+
+    let mut world = World::new();
+    world.insert_resource(EventBus::new());
+
+    // System A publishes damage events
+    {
+        let bus = world.get_resource_mut::<EventBus>().unwrap();
+        bus.publish(DamageEvent {
+            target: 1,
+            amount: 50.0,
+        });
+        bus.publish(DamageEvent {
+            target: 2,
+            amount: 100.0,
+        });
+    }
+
+    // System B processes damage, publishes death
+    {
+        let bus = world.get_resource_mut::<EventBus>().unwrap();
+        let damages = bus.drain::<DamageEvent>();
+        assert_eq!(damages.len(), 2);
+
+        for d in &damages {
+            if d.amount >= 100.0 {
+                bus.publish(DeathEvent { entity: d.target });
+            }
+        }
+    }
+
+    // System C processes deaths
+    {
+        let bus = world.get_resource_mut::<EventBus>().unwrap();
+        let deaths = bus.drain::<DeathEvent>();
+        assert_eq!(deaths.len(), 1);
+        assert_eq!(deaths[0].entity, 2);
+    }
+}
+
+#[test]
+fn scene_and_world_resources() {
+    let mut world = World::new();
+    world.insert_resource(GameClock::with_timestep(1.0 / 120.0));
+
+    let scene = load_scene(
+        r#"
+name = "Resource Test"
+[[entities]]
+name = "Player"
+position = [0.0, 0.0, 0.0]
+"#,
+    )
+    .unwrap();
+
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+    assert_eq!(entities.len(), 1);
+
+    // Clock resource is independent of scene entities
+    let clock = world.get_resource::<GameClock>().unwrap();
+    assert!((clock.fixed_timestep - 1.0 / 120.0).abs() < 1e-10);
+}
+
+#[test]
+fn scene_toml_roundtrip() {
+    use kiran::scene::{EntityDef, SceneDefinition};
+
+    let original = SceneDefinition {
+        name: "Roundtrip".into(),
+        description: "Testing serialization".into(),
+        entities: vec![
+            EntityDef {
+                name: "A".into(),
+                position: [1.0, 2.0, 3.0],
+                light_intensity: Some(0.5),
+                tags: vec!["tag1".into()],
+            },
+            EntityDef {
+                name: "B".into(),
+                position: [0.0, 0.0, 0.0],
+                light_intensity: None,
+                tags: vec![],
+            },
+        ],
+    };
+
+    let toml_str = toml::to_string(&original).unwrap();
+    let restored = load_scene(&toml_str).unwrap();
+
+    assert_eq!(restored.name, "Roundtrip");
+    assert_eq!(restored.entities.len(), 2);
+    assert_eq!(restored.entities[0].light_intensity, Some(0.5));
+    assert_eq!(restored.entities[1].tags.len(), 0);
+}
+
+#[test]
+fn input_serde_roundtrip() {
+    let events = vec![
+        InputEvent::KeyPressed(KeyCode::W),
+        InputEvent::MouseMoved { x: 100.0, y: 200.0 },
+        InputEvent::MouseScroll { dx: 0.0, dy: -3.0 },
+    ];
+
+    for event in &events {
+        let json = serde_json::to_string(event).unwrap();
+        let decoded: InputEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(*event, decoded);
+    }
+}
+
+#[test]
+fn stress_spawn_despawn_respawn() {
+    let mut world = World::new();
+
+    // Spawn 500 entities with components
+    let mut entities = Vec::new();
+    for i in 0..500 {
+        let e = world.spawn();
+        world
+            .insert_component(e, Name(format!("entity_{i}")))
+            .unwrap();
+        world
+            .insert_component(e, Position(glam::Vec3::new(i as f32, 0.0, 0.0)))
+            .unwrap();
+        entities.push(e);
+    }
+    assert_eq!(world.entity_count(), 500);
+
+    // Despawn every other entity
+    for i in (0..500).step_by(2) {
+        world.despawn(entities[i]).unwrap();
+    }
+    assert_eq!(world.entity_count(), 250);
+
+    // Respawn into recycled slots and verify generations
+    for _ in 0..250 {
+        let e = world.spawn();
+        assert_eq!(e.generation(), 1);
+        world.insert_component(e, Name("recycled".into())).unwrap();
+    }
+    assert_eq!(world.entity_count(), 500);
+}
+
+#[test]
+fn has_component_integration() {
+    let mut world = World::new();
+    let e = world.spawn();
+
+    assert!(!world.has_component::<Name>(e));
+    assert!(!world.has_component::<Position>(e));
+
+    world.insert_component(e, Name("test".into())).unwrap();
+    assert!(world.has_component::<Name>(e));
+    assert!(!world.has_component::<Position>(e));
+
+    world
+        .insert_component(e, Position(glam::Vec3::ZERO))
+        .unwrap();
+    assert!(world.has_component::<Name>(e));
+    assert!(world.has_component::<Position>(e));
+
+    world.remove_component::<Name>(e);
+    assert!(!world.has_component::<Name>(e));
+    assert!(world.has_component::<Position>(e));
+}
+
+#[test]
+fn mouse_button_edge_triggers_multi_frame() {
+    let mut state = InputState::new();
+
+    // Frame 1: press left mouse
+    state.process_event(&InputEvent::MouseButtonPressed(MouseButton::Left));
+    assert!(state.is_mouse_button_just_pressed(MouseButton::Left));
+    assert!(state.is_mouse_button_pressed(MouseButton::Left));
+
+    // Frame 2: still held, not "just" anymore
+    state.clear_frame();
+    assert!(!state.is_mouse_button_just_pressed(MouseButton::Left));
+    assert!(state.is_mouse_button_pressed(MouseButton::Left));
+
+    // Frame 3: released
+    state.process_event(&InputEvent::MouseButtonReleased(MouseButton::Left));
+    assert!(state.is_mouse_button_just_released(MouseButton::Left));
+    assert!(!state.is_mouse_button_pressed(MouseButton::Left));
+}
+
+#[test]
+fn game_loop_simulation() {
+    // Simulate a mini game loop: clock tick -> input -> events -> verify
+    let mut world = World::new();
+    world.insert_resource(GameClock::with_timestep(1.0 / 60.0));
+    world.insert_resource(EventBus::new());
+
+    let scene = load_scene(
+        r#"
+name = "Game Loop Test"
+[[entities]]
+name = "Player"
+position = [0.0, 0.0, 0.0]
+"#,
+    )
+    .unwrap();
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+    let player = entities[0];
+
+    // Simulate 10 frames
+    for frame in 0..10 {
+        let clock = world.get_resource_mut::<GameClock>().unwrap();
+        clock.tick(1.0 / 60.0);
+
+        // Move player each frame
+        let pos = world.get_component_mut::<Position>(player).unwrap();
+        pos.0.x += 1.0;
+        assert_eq!(pos.0.x, (frame + 1) as f32);
+    }
+
+    let clock = world.get_resource::<GameClock>().unwrap();
+    assert_eq!(clock.frame, 10);
+    let pos = world.get_component::<Position>(player).unwrap();
+    assert_eq!(pos.0.x, 10.0);
+}

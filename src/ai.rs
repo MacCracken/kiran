@@ -1,9 +1,13 @@
-//! Daimon (agent-runtime) integration for the Kiran game engine.
+//! AI integration: daimon client, hoosh inference
 //!
-//! Registers Kiran as an AGNOS agent, sends heartbeats, and provides
-//! an inference helper that routes through hoosh (LLM gateway).
+//! Provides the AGNOS integration layer for the Kiran game engine,
+//! registering as a daimon agent and routing LLM requests through hoosh.
 
 use serde::{Deserialize, Serialize};
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
 
 /// Configuration for connecting to the AGNOS daimon.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +29,10 @@ impl Default for DaimonConfig {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Client
+// ---------------------------------------------------------------------------
 
 /// Client for interacting with the AGNOS daimon and hoosh services.
 pub struct DaimonClient {
@@ -54,10 +62,7 @@ impl DaimonClient {
 
         let resp = self.http.post(&url).json(&body).send().await?;
         let data: serde_json::Value = resp.json().await?;
-        let id = data["id"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_string();
+        let id = data["id"].as_str().unwrap_or("unknown").to_string();
         self.agent_id = Some(id.clone());
         tracing::info!(agent_id = %id, "registered with daimon");
         Ok(id)

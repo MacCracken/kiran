@@ -12,6 +12,9 @@
 .DS_Store
 Thumbs.db
 
+# Coverage
+/coverage/
+
 # Environment
 .env
 .env.*

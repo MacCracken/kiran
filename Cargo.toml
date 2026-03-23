@@ -1,47 +1,40 @@
-[workspace]
-resolver = "2"
-members = ["crates/*"]
-
-[workspace.package]
+[package]
+name = "kiran"
+version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0"
-version = "0.1.0"
+description = "Kiran — AI-native game engine for AGNOS"
 
-[workspace.dependencies]
+[features]
+default = []
+ai = ["dep:reqwest", "dep:tokio"]
+physics = ["dep:impetus"]
+full = ["ai", "physics"]
+
+[dependencies]
+# Core
+glam = "0.29"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
 anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json"] }
+
+# CLI
 clap = { version = "4", features = ["derive"] }
-glam = "0.29"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Internal
-kiran-core = { path = "crates/kiran-core" }
-kiran-scene = { path = "crates/kiran-scene" }
-kiran-input = { path = "crates/kiran-input" }
-kiran-render = { path = "crates/kiran-render" }
-kiran-ai = { path = "crates/kiran-ai" }
-kiran-physics = { path = "crates/kiran-physics" }
+# AI (optional)
+reqwest = { version = "0.12", features = ["json"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
 
-[package]
-name = "kiran"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-description = "Kiran — AI-native game engine"
+# Physics (optional)
+impetus = { path = "../impetus", optional = true }
 
-[dependencies]
-kiran-core = { workspace = true }
-kiran-scene = { workspace = true }
-kiran-input = { workspace = true }
-kiran-render = { workspace = true }
-kiran-physics = { workspace = true }
-clap = { workspace = true }
-anyhow = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "engine"
+harness = false

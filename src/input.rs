@@ -1,4 +1,4 @@
-//! kiran-input — Input handling: keyboard, mouse, gamepad
+//! Input handling: keyboard, mouse, gamepad
 //!
 //! Provides input event types and an [`InputState`] tracker that accumulates
 //! events each frame and exposes query methods for pressed keys, mouse
@@ -15,25 +15,74 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KeyCode {
     // Letters
-    A, B, C, D, E, F, G, H, I, J, K, L, M,
-    N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
 
     // Digits
-    Key0, Key1, Key2, Key3, Key4,
-    Key5, Key6, Key7, Key8, Key9,
+    Key0,
+    Key1,
+    Key2,
+    Key3,
+    Key4,
+    Key5,
+    Key6,
+    Key7,
+    Key8,
+    Key9,
 
     // Arrows
-    Up, Down, Left, Right,
+    Up,
+    Down,
+    Left,
+    Right,
 
     // Modifiers
-    LShift, RShift,
-    LCtrl, RCtrl,
-    LAlt, RAlt,
-    LSuper, RSuper,
+    LShift,
+    RShift,
+    LCtrl,
+    RCtrl,
+    LAlt,
+    RAlt,
+    LSuper,
+    RSuper,
 
     // Function keys
-    F1, F2, F3, F4, F5, F6,
-    F7, F8, F9, F10, F11, F12,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
 
     // Common keys
     Space,
@@ -109,6 +158,10 @@ pub struct InputState {
     just_pressed: HashSet<KeyCode>,
     /// Keys released this frame.
     just_released: HashSet<KeyCode>,
+    /// Mouse buttons pressed this frame.
+    just_pressed_buttons: HashSet<MouseButton>,
+    /// Mouse buttons released this frame.
+    just_released_buttons: HashSet<MouseButton>,
 }
 
 impl InputState {
@@ -133,10 +186,13 @@ impl InputState {
                 self.mouse_y = *y;
             }
             InputEvent::MouseButtonPressed(btn) => {
-                self.pressed_buttons.insert(*btn);
+                if self.pressed_buttons.insert(*btn) {
+                    self.just_pressed_buttons.insert(*btn);
+                }
             }
             InputEvent::MouseButtonReleased(btn) => {
                 self.pressed_buttons.remove(btn);
+                self.just_released_buttons.insert(*btn);
             }
             InputEvent::MouseScroll { dx, dy } => {
                 self.scroll_dx += dx;
@@ -165,6 +221,16 @@ impl InputState {
         self.pressed_buttons.contains(&btn)
     }
 
+    /// Whether a mouse button was pressed this frame (edge-triggered).
+    pub fn is_mouse_button_just_pressed(&self, btn: MouseButton) -> bool {
+        self.just_pressed_buttons.contains(&btn)
+    }
+
+    /// Whether a mouse button was released this frame.
+    pub fn is_mouse_button_just_released(&self, btn: MouseButton) -> bool {
+        self.just_released_buttons.contains(&btn)
+    }
+
     /// Current mouse position.
     pub fn mouse_position(&self) -> (f64, f64) {
         (self.mouse_x, self.mouse_y)
@@ -179,6 +245,8 @@ impl InputState {
     pub fn clear_frame(&mut self) {
         self.just_pressed.clear();
         self.just_released.clear();
+        self.just_pressed_buttons.clear();
+        self.just_released_buttons.clear();
         self.scroll_dx = 0.0;
         self.scroll_dy = 0.0;
     }
@@ -294,5 +362,68 @@ mod tests {
         let json = serde_json::to_string(&event).unwrap();
         let decoded: InputEvent = serde_json::from_str(&json).unwrap();
         assert_eq!(event, decoded);
+    }
+
+    #[test]
+    fn mouse_button_edge_triggers() {
+        let mut state = InputState::new();
+        state.process_event(&InputEvent::MouseButtonPressed(MouseButton::Left));
+        assert!(state.is_mouse_button_just_pressed(MouseButton::Left));
+        assert!(!state.is_mouse_button_just_released(MouseButton::Left));
+
+        state.clear_frame();
+        assert!(!state.is_mouse_button_just_pressed(MouseButton::Left));
+        assert!(state.is_mouse_button_pressed(MouseButton::Left));
+
+        state.process_event(&InputEvent::MouseButtonReleased(MouseButton::Left));
+        assert!(state.is_mouse_button_just_released(MouseButton::Left));
+        assert!(!state.is_mouse_button_pressed(MouseButton::Left));
+    }
+
+    #[test]
+    fn all_mouse_button_variants() {
+        let mut state = InputState::new();
+        let buttons = [
+            MouseButton::Left,
+            MouseButton::Right,
+            MouseButton::Middle,
+            MouseButton::Back,
+            MouseButton::Forward,
+        ];
+        for btn in &buttons {
+            state.process_event(&InputEvent::MouseButtonPressed(*btn));
+        }
+        for btn in &buttons {
+            assert!(state.is_mouse_button_pressed(*btn));
+        }
+    }
+
+    #[test]
+    fn rapid_press_release_same_frame() {
+        let mut state = InputState::new();
+        state.process_event(&InputEvent::KeyPressed(KeyCode::A));
+        state.process_event(&InputEvent::KeyReleased(KeyCode::A));
+
+        // Key was pressed and released in same frame
+        assert!(!state.is_key_pressed(KeyCode::A));
+        assert!(state.is_key_just_pressed(KeyCode::A));
+        assert!(state.is_key_just_released(KeyCode::A));
+    }
+
+    #[test]
+    fn serde_all_event_variants() {
+        let events = vec![
+            InputEvent::KeyPressed(KeyCode::A),
+            InputEvent::KeyReleased(KeyCode::Z),
+            InputEvent::MouseMoved { x: 0.0, y: 0.0 },
+            InputEvent::MouseButtonPressed(MouseButton::Middle),
+            InputEvent::MouseButtonReleased(MouseButton::Back),
+            InputEvent::MouseScroll { dx: -1.5, dy: 2.5 },
+        ];
+        for event in &events {
+            let json = serde_json::to_string(event).unwrap();
+            let decoded: InputEvent = serde_json::from_str(&json).unwrap();
+            assert_eq!(*event, decoded);
+        }
     }
 }
