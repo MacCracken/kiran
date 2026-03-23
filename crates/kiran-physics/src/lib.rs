@@ -312,6 +312,7 @@ impl PhysicsEngine {
                         entity_b,
                     })
                 }
+                _ => None,
             })
             .collect()
     }
