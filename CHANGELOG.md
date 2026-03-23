@@ -18,6 +18,7 @@ All notable changes to this project will be documented in this file.
 - `OrbitController`, `FlyController`, `FollowController` camera controllers.
 - `PartialEq` on `SceneDefinition`, `EntityDef`, `RenderConfig`.
 - `skip_serializing_if` on optional/empty scene fields for clean TOML output.
+- Resource change detection: `is_resource_changed<T>()`, `clear_resource_changed<T>()`, `increment_tick()`.
 
 #### V0.3 — Audio & Physics Polish
 - `audio` feature with dhvani integration.
@@ -29,9 +30,11 @@ All notable changes to this project will be documented in this file.
 - Spatial gain and pan calculation helpers.
 - `SoundDef` in scene TOML (`[entities.sound]`).
 - `PhysicsDef`/`ColliderDef` in scene TOML (`[entities.physics]`).
+- Full TOML-driven physics spawning (auto-creates RigidBody, Collider, PhysicsPosition, Velocity and registers with PhysicsEngine).
 - `PhysicsEngine::raycast()` returning `RaycastHit` with entity mapping.
 - `PhysicsEngine::spawn_particle()` for impetus particle integration.
 - `PhysicsEngine::entity_count()`.
+- `PhysicsEngine::debug_shapes()` — generates `DebugShape` wireframes (Circle/Box/Capsule) for all registered colliders.
 - Collider-to-entity reverse HashMap for O(1) collision event lookup.
 
 #### V0.4 — Scripting & Hot Reload
@@ -50,6 +53,14 @@ All notable changes to this project will be documented in this file.
 - Mouse buttons now have edge-triggered queries (`is_mouse_button_just_pressed/released`).
 - `Entity::from_id(u64)` added for safe reconstruction from raw ids.
 - `World::has_component<T>()` added.
+
+### Fixed
+- `spatial_gain` overflow — negative distance produced gain > 1.0 (clamped to 0.0–1.0).
+- `SoundTrigger.source` was ignored by trigger processor — now sets source path on playback.
+- Entity generation bug in `run_scripts` — hardcoded generation 0, broke recycled entity messaging.
+- `run_scripts` never called `record_exec()` — exec_count was always 0.
+- `is_resource_changed` returned false for newly inserted resources at tick 0.
+- Redundant `LightComponent` double-lookup in CLI `run_scene`.
 
 ### Performance
 - `get_component`: 33ns → 14ns (2.4x faster, Vec arena).

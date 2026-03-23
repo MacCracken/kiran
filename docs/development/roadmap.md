@@ -15,7 +15,8 @@ Kiran does NOT own:
 - **Simulation / AI NPCs** → joshua (headless sim, NPC agents, deterministic replay)
 - **Emotion / personality** → bhava (mood vectors, trait spectrums, sentiment)
 - **Audio** → dhvani (spatial audio, DSP, mixing)
-- **Rendering backend** → aethersafta (wgpu scene graph, compositing)
+- **Rendering backend** → soorat (wgpu rendering engine)
+- **Optics / color science** → prakash (ray optics, spectral color, PBR)
 - **Multiplayer** → majra (pub/sub, relay, datagrams)
 
 ## Completed
@@ -24,82 +25,62 @@ Kiran does NOT own:
 
 - ECS world with generational entity allocator (u64: generation + index)
 - Vec-arena component storage (O(1) access by entity index)
-- Cached entity count (O(1))
-- `Entity::from_id()` for safe reconstruction from raw ids
-- `has_component<T>()` query
-- Singleton resources
+- Cached entity count (O(1)), `Entity::from_id()`, `has_component<T>()`
+- Singleton resources with tick-based change detection
 - GameClock with fixed timestep + variable render
 - Typed event bus (publish/drain)
 - TOML scene format (entities, position, light, tags)
 - Scene loading and entity spawning
-- Full KeyCode enum, MouseButton, scroll, mouse position tracking
-- Edge-triggered queries for keys and mouse buttons (just_pressed/released)
+- Full KeyCode/MouseButton input with edge-triggered queries
 - Renderer trait, Camera with glam view/projection matrices
-- SpriteDesc, MeshDesc, DrawCommand
-- NullRenderer for headless testing
+- SpriteDesc, MeshDesc, DrawCommand, NullRenderer
 - Daimon/hoosh AI client (feature-gated)
 - Impetus physics bridge (feature-gated)
 - CLI: `kiran run` and `kiran check`
-- Criterion benchmarks with CSV history tracking
+- Criterion benchmarks (40) with CSV history tracking
 - CI pipeline, Makefile, deny.toml, codecov
 
 ### V0.2 — System Scheduling, Scene Hierarchy, Camera Controllers (2026-03-23)
 
-- System trait with `run(&mut World)`, `stage()`, `name()`
-- SystemStage enum: Input → Physics → GameLogic → Render
-- Scheduler: collects systems, sorts by stage, runs in order
-- FnSystem closure wrapper
-- Parent/Children components with hierarchy helpers (set_parent, remove_parent)
-- Recursive child spawning from TOML (`[[entities.children]]`)
-- Prefab/template entities (`[[prefabs]]` + `prefab = "name"`)
-- Material definitions in scene TOML (color, texture path)
-- OrbitController, FlyController, FollowController camera controllers
-- `skip_serializing_if` for clean TOML output
-- PartialEq on SceneDefinition, EntityDef, RenderConfig
+- System trait + SystemStage enum (Input → Physics → GameLogic → Render)
+- Scheduler with stage-ordered execution, FnSystem closure wrapper
+- Parent/Children components with hierarchy helpers
+- Recursive child spawning from TOML
+- Prefab/template entities with inheritance
+- Material definitions in scene TOML
+- OrbitController, FlyController, FollowController
+- Resource change detection (tick-based dirty flags)
 
 ### V0.3 — Audio & Physics Polish (2026-03-23)
 
-- dhvani audio integration (AudioEngine resource, graph + clock)
-- SoundSource component (source, volume, spatial, looping, max_distance)
-- AudioListener component
-- SoundTrigger component (collision/action → sound)
-- `process_sound_triggers()` system with event bus integration
-- Spatial gain/pan calculations
-- Sound definition in scene TOML (`[entities.sound]`)
-- Physics definition in scene TOML (`[entities.physics]` + collider)
-- PhysicsEngine raycasting API (RaycastHit with entity mapping)
-- Particle spawning through PhysicsEngine
-- PhysicsEngine entity_count()
-- Collider-to-entity reverse HashMap (O(1) lookup)
+- dhvani audio integration (AudioEngine, SoundSource, AudioListener, SoundTrigger)
+- Sound definitions in scene TOML, spatial gain/pan calculations
+- Full TOML-driven physics spawning (PhysicsDef → RigidBody + Collider + auto-register)
+- PhysicsEngine raycasting (RaycastHit with entity mapping)
+- Physics debug rendering (DebugShape with Circle/Box/Capsule kinds)
+- Particle spawning, collider-to-entity reverse map (O(1))
 
 ### V0.4 — Scripting & Hot Reload (2026-03-23)
 
-- Script component (WASM source, enabled, JSON state)
-- ScriptMessage for engine ↔ script communication (sender/target/kind/payload)
-- ScriptEngine resource (inbox/outbox, frame counter, config)
-- `run_scripts()` system with message delivery
-- FileWatcher (polling-based mtime change detection)
-- SceneReloader (load + watch, auto-despawn/respawn on file change)
-- `apply_scene_diff()` (update in place by name, add new, remove missing)
+- Script component + ScriptEngine resource with message passing
+- FileWatcher + SceneReloader with live TOML updates
+- `apply_scene_diff()` for in-place scene updates
+
+### Rendering Integration (2026-03-23)
+
+- soorat GPU rendering backend integration (`rendering` feature)
+- SooratRenderer implementing kiran Renderer trait
+- DrawCommand → soorat Sprite/Color translation
+- soorat re-exports (Color, Sprite, SpriteBatch, Vertex2D/3D, GpuContext, WindowConfig)
+- prakash optics integration via soorat (color temperature, wavelength, PBR)
 
 ## Remaining
 
-### V0.2 — Rendering Integration (blocked on aethersafta wiring)
+### Physics
 
-- [ ] aethersafta backend (wgpu scene graph integration)
-- [ ] Sprite rendering pipeline (2D)
-- [ ] Basic 3D mesh rendering (glTF loading via aethersafta)
-- [ ] Window management (winit integration)
-- [ ] Debug wireframe overlay (collider shapes from impetus)
-- [ ] Resource change detection (dirty flags)
-
-### V0.3 — Physics Polish
-
-- [ ] Full TOML-driven physics spawning (parse PhysicsDef → register with PhysicsEngine)
 - [ ] Full impetus 3D integration
-- [ ] Physics debug rendering (wireframe colliders)
 
-### V0.4 — Scripting
+### Scripting
 
 - [ ] kavach WASM backend wiring (blocked on kavach wasm feature build)
 - [ ] Hot reload for shaders
@@ -168,7 +149,8 @@ See [shared-crates.md](https://github.com/MacCracken/agnosticos/blob/main/docs/d
 kiran (engine orchestration)
   ├── hisab        — math (vectors, geometry, transforms, spatial structures)
   ├── impetus      — physics (rigid bodies, collision, particles)
-  ├── aethersafta  — rendering (wgpu scene graph, compositing)
+  ├── soorat       — rendering (wgpu, sprites, meshes)
+  ├── prakash      — optics (ray tracing, spectral color, PBR)
   ├── dhvani       — audio (spatial audio, DSP, mixing)
   ├── ranga        — image processing (textures, GPU compute)
   ├── majra        — multiplayer (pub/sub, relay, QUIC datagrams)
@@ -180,6 +162,6 @@ kiran (engine orchestration)
 
 ## Stats
 
-- **Source:** 5,500 lines across 10 modules
-- **Tests:** 191 (all features), 40 benchmarks with CSV history
-- **Features:** `audio` (dhvani), `physics` (impetus), `ai` (reqwest/tokio)
+- **Source:** ~5,800 lines across 12 modules
+- **Tests:** 217 (all features), 40 benchmarks, 12 benchmark runs
+- **Features:** `audio` (dhvani), `physics` (impetus), `rendering` (soorat), `ai` (reqwest/tokio)

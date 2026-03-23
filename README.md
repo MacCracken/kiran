@@ -2,7 +2,7 @@
 
 > **Kiran** (Sanskrit: किरण — ray of light) — AI-native game engine for AGNOS
 
-Modular game engine built in Rust, designed for AI-driven game development. Composes AGNOS shared crates for physics ([impetus](https://github.com/MacCracken/impetus)), math ([hisab](https://github.com/MacCracken/hisab)), audio ([dhvani](https://github.com/MacCracken/dhvani)), and rendering ([aethersafta](https://github.com/MacCracken/aethersafta)).
+Modular game engine built in Rust, designed for AI-driven game development. Composes AGNOS shared crates for physics ([impetus](https://github.com/MacCracken/impetus)), math ([hisab](https://github.com/MacCracken/hisab)), audio ([dhvani](https://github.com/MacCracken/dhvani)), rendering ([soorat](https://github.com/MacCracken/soorat)), and optics ([prakash](https://github.com/MacCracken/prakash)).
 
 For AI NPCs and headless simulation, see [joshua](https://github.com/MacCracken/joshua) (builds on kiran).
 
@@ -12,89 +12,75 @@ For AI NPCs and headless simulation, see [joshua](https://github.com/MacCracken/
 kiran (engine orchestration)
   ├── hisab        — math (vectors, geometry, transforms, spatial structures)
   ├── impetus      — physics (rigid bodies, collision, particles)
-  ├── aethersafta  — rendering (wgpu, scene graph)  [planned]
-  ├── dhvani       — audio (spatial, DSP, mixing)    [planned]
+  ├── soorat       — rendering (wgpu, sprites, meshes, window management)
+  ├── prakash      — optics (ray tracing, spectral color, PBR primitives)
+  ├── dhvani       — audio (spatial, DSP, mixing)
   ├── ranga        — image processing (textures)     [planned]
   ├── majra        — multiplayer (pub/sub, relay)    [planned]
   ├── kavach       — scripting sandbox (WASM)        [planned]
   └── bhava        — NPC emotion/personality         [planned]
 ```
 
-## Crates
+## Modules
 
-| Crate | Description |
-|-------|-------------|
-| `kiran-core` | ECS world, generational entity allocator, game clock, event bus |
-| `kiran-scene` | TOML scene format, loading, entity spawning |
-| `kiran-input` | Keyboard, mouse, gamepad, edge-triggered queries |
-| `kiran-render` | Renderer trait, camera, sprites/meshes, NullRenderer (headless) |
-| `kiran-physics` | Impetus integration bridge |
-| `kiran-ai` | AGNOS daimon/hoosh integration |
+| Module | Description |
+|--------|-------------|
+| `world` | ECS world, generational entity allocator, game clock, event bus, scheduler |
+| `scene` | TOML scene format, loading, hierarchy, prefabs, materials |
+| `input` | Keyboard, mouse, gamepad, edge-triggered queries |
+| `render` | Renderer trait, camera controllers, sprites/meshes, NullRenderer |
+| `gpu` | Soorat rendering backend (feature: `rendering`) |
+| `audio` | dhvani spatial audio integration (feature: `audio`) |
+| `physics` | Impetus physics bridge, raycasting, debug shapes (feature: `physics`) |
+| `ai` | AGNOS daimon/hoosh integration (feature: `ai`) |
+| `script` | Script engine, message passing, WASM bridge |
+| `reload` | Scene hot reload, file watcher, live diff updates |
 
 ## Quick Start
 
 ```rust
-use kiran_core::{World, GameClock};
-use kiran_scene::load_scene;
-use kiran_input::{InputState, KeyCode};
+use kiran::{World, GameClock, Scheduler, FnSystem, SystemStage};
+use kiran::scene::{load_scene, spawn_scene};
+use kiran::input::InputState;
 
 // Load a scene
 let scene = load_scene(include_str!("level.toml")).unwrap();
 let mut world = World::new();
-let entities = kiran_scene::spawn_scene(&mut world, &scene);
+spawn_scene(&mut world, &scene).unwrap();
+
+// Set up systems
+let mut scheduler = Scheduler::new();
+scheduler.add_system(Box::new(FnSystem::new("tick", SystemStage::Input, |world| {
+    let clock = world.get_resource_mut::<GameClock>().unwrap();
+    clock.tick(1.0 / 60.0);
+})));
 
 // Game loop
-let mut clock = GameClock::new(1.0 / 60.0);
 loop {
-    clock.tick(delta_time);
-    // input → physics → game logic → render
+    scheduler.run(&mut world);
 }
 ```
 
-## Scene Format (TOML)
+## Feature Flags
 
-```toml
-[scene]
-name = "tavern"
-ambient_light = [0.2, 0.2, 0.3]
-
-[[entity]]
-name = "bartender"
-type = "npc"
-position = [5.0, 0.0, 3.0]
-
-[entity.ai]
-model = "mistral:7b-q4"
-personality = "blue-shirt-guy"
-
-[[entity]]
-name = "table"
-type = "static"
-position = [3.0, 0.0, 2.0]
-model = "models/tavern/table.glb"
-
-[entity.physics]
-body_type = "static"
-collider = { shape = "box", half_extents = [0.5, 0.5, 0.5] }
-```
-
-## CLI
-
-```sh
-kiran check level.toml    # Validate scene file
-kiran run level.toml      # Load and run
-```
+| Feature | Dependency | Description |
+|---------|-----------|-------------|
+| `audio` | dhvani | Spatial audio, sound triggers |
+| `physics` | impetus | Rigid bodies, collision, raycasting |
+| `rendering` | soorat | GPU rendering via wgpu |
+| `ai` | reqwest, tokio | Daimon/hoosh AI integration |
 
 ## Building
 
 ```sh
-cargo build --workspace
-cargo test --workspace
+cargo build
+cargo test
+cargo test --all-features
 ```
 
 ## Roadmap
 
-See [docs/development/roadmap.md](docs/development/roadmap.md) — V0.1 (core) done, V0.2 (rendering) through V1.0 (production) planned.
+See [docs/development/roadmap.md](docs/development/roadmap.md).
 
 ## License
 

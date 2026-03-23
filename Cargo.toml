@@ -10,7 +10,8 @@ default = []
 ai = ["dep:reqwest", "dep:tokio"]
 audio = ["dep:dhvani"]
 physics = ["dep:impetus"]
-full = ["ai", "audio", "physics"]
+rendering = ["dep:soorat"]
+full = ["ai", "audio", "physics", "rendering"]
 
 [dependencies]
 # Core
@@ -35,6 +36,9 @@ dhvani = { version = "0.22", optional = true }
 
 # Physics (optional)
 impetus = { path = "../impetus", optional = true }
+
+# Rendering (optional)
+soorat = { path = "../soorat", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
