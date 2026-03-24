@@ -24,12 +24,13 @@ pub mod gpu;
 pub mod net;
 
 pub mod asset;
+pub mod gizmos;
 pub mod profiler;
 pub mod reload;
 pub mod script;
 
 // Re-export key types at crate root
 pub use world::{
-    Entity, EventBus, FnSystem, GameClock, KiranError, Result, Scheduler, System, SystemStage,
-    World,
+    ChangeTracker, Commands, Entity, EventBus, FnSystem, GameClock, KiranError, Result, Scheduler,
+    System, SystemStage, World,
 };

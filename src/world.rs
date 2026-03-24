@@ -450,6 +450,176 @@ impl World {
 }
 
 // ---------------------------------------------------------------------------
+// Entity Commands — deferred mutations
+// ---------------------------------------------------------------------------
+
+type InitFn = Box<dyn FnOnce(&mut World, Entity)>;
+
+/// A deferred command to apply to the world between system stages.
+enum Command {
+    Spawn(Vec<InitFn>),
+    Despawn(Entity),
+    InsertComponent(Entity, TypeId, Box<dyn Any + Send + Sync>),
+    RemoveComponent(Entity, TypeId),
+}
+
+/// Deferred command buffer — collect spawn/despawn/insert during systems,
+/// apply between stages without requiring `&mut World`.
+#[derive(Default)]
+pub struct Commands {
+    queue: Vec<Command>,
+}
+
+impl Commands {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Queue an entity spawn. Returns a placeholder entity ID.
+    /// Components can be added via the returned builder.
+    pub fn spawn(&mut self) -> CommandEntityBuilder<'_> {
+        let idx = self.queue.len();
+        self.queue.push(Command::Spawn(Vec::new()));
+        CommandEntityBuilder {
+            commands: self,
+            spawn_idx: idx,
+        }
+    }
+
+    /// Queue an entity despawn.
+    pub fn despawn(&mut self, entity: Entity) {
+        self.queue.push(Command::Despawn(entity));
+    }
+
+    /// Queue inserting a component on an entity.
+    pub fn insert<T: 'static + Send + Sync>(&mut self, entity: Entity, component: T) {
+        self.queue.push(Command::InsertComponent(
+            entity,
+            TypeId::of::<T>(),
+            Box::new(component),
+        ));
+    }
+
+    /// Queue removing a component from an entity.
+    pub fn remove<T: 'static + Send + Sync>(&mut self, entity: Entity) {
+        self.queue
+            .push(Command::RemoveComponent(entity, TypeId::of::<T>()));
+    }
+
+    /// Number of pending commands.
+    pub fn len(&self) -> usize {
+        self.queue.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.queue.is_empty()
+    }
+
+    /// Apply all queued commands to the world, consuming the buffer.
+    pub fn apply(self, world: &mut World) {
+        for cmd in self.queue {
+            match cmd {
+                Command::Spawn(init_fns) => {
+                    let entity = world.spawn();
+                    for f in init_fns {
+                        f(world, entity);
+                    }
+                }
+                Command::Despawn(entity) => {
+                    let _ = world.despawn(entity);
+                }
+                Command::InsertComponent(entity, tid, boxed) => {
+                    let idx = entity.index() as usize;
+                    let storage = world.components.entry(tid).or_default();
+                    if idx >= storage.len() {
+                        storage.resize_with(idx + 1, || None);
+                    }
+                    storage[idx] = Some(boxed);
+                }
+                Command::RemoveComponent(entity, tid) => {
+                    let idx = entity.index() as usize;
+                    if let Some(storage) = world.components.get_mut(&tid)
+                        && idx < storage.len()
+                    {
+                        storage[idx] = None;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Builder for adding components to a spawned entity command.
+pub struct CommandEntityBuilder<'a> {
+    commands: &'a mut Commands,
+    spawn_idx: usize,
+}
+
+impl<'a> CommandEntityBuilder<'a> {
+    /// Add a component to the entity being spawned.
+    pub fn with<T: 'static + Send + Sync>(self, component: T) -> Self {
+        if let Command::Spawn(ref mut init_fns) = self.commands.queue[self.spawn_idx] {
+            init_fns.push(Box::new(move |world: &mut World, entity: Entity| {
+                let _ = world.insert_component(entity, component);
+            }));
+        }
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Component change detection
+// ---------------------------------------------------------------------------
+
+/// Tracks per-component change ticks for change detection.
+/// Store as a resource to enable `Changed<T>` / `Added<T>` queries.
+#[derive(Default)]
+pub struct ChangeTracker {
+    /// (TypeId, entity_index) → tick when last modified
+    changed: HashMap<(TypeId, u32), u64>,
+    /// (TypeId, entity_index) → tick when first added
+    added: HashMap<(TypeId, u32), u64>,
+}
+
+impl ChangeTracker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Mark a component as changed at the given tick.
+    pub fn mark_changed<T: 'static>(&mut self, entity: Entity, tick: u64) {
+        self.changed
+            .insert((TypeId::of::<T>(), entity.index()), tick);
+    }
+
+    /// Mark a component as added at the given tick.
+    pub fn mark_added<T: 'static>(&mut self, entity: Entity, tick: u64) {
+        self.added.insert((TypeId::of::<T>(), entity.index()), tick);
+    }
+
+    /// Check if a component was changed since `since_tick`.
+    pub fn is_changed<T: 'static>(&self, entity: Entity, since_tick: u64) -> bool {
+        self.changed
+            .get(&(TypeId::of::<T>(), entity.index()))
+            .is_some_and(|&tick| tick > since_tick)
+    }
+
+    /// Check if a component was added since `since_tick`.
+    pub fn is_added<T: 'static>(&self, entity: Entity, since_tick: u64) -> bool {
+        self.added
+            .get(&(TypeId::of::<T>(), entity.index()))
+            .is_some_and(|&tick| tick > since_tick)
+    }
+
+    /// Clear tracking for a despawned entity.
+    pub fn clear_entity(&mut self, entity: Entity) {
+        let idx = entity.index();
+        self.changed.retain(|&(_, i), _| i != idx);
+        self.added.retain(|&(_, i), _| i != idx);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // System trait + scheduler
 // ---------------------------------------------------------------------------
 
@@ -1440,5 +1610,129 @@ mod tests {
         }
         let results = world.query::<Health>();
         assert_eq!(results.len(), 1000);
+    }
+
+    // -- Commands tests --
+
+    #[test]
+    fn commands_spawn() {
+        let mut world = World::new();
+        let mut cmds = Commands::new();
+        cmds.spawn()
+            .with(Health(100))
+            .with(Velocity { x: 1.0, y: 2.0 });
+        cmds.spawn().with(Health(50));
+
+        assert_eq!(cmds.len(), 2);
+        cmds.apply(&mut world);
+
+        assert_eq!(world.entity_count(), 2);
+        let results = world.query::<Health>();
+        assert_eq!(results.len(), 2);
+    }
+
+    #[test]
+    fn commands_despawn() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert_component(e, Health(100)).unwrap();
+
+        let mut cmds = Commands::new();
+        cmds.despawn(e);
+        cmds.apply(&mut world);
+
+        assert_eq!(world.entity_count(), 0);
+    }
+
+    #[test]
+    fn commands_insert_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+
+        let mut cmds = Commands::new();
+        cmds.insert(e, Health(42));
+        cmds.apply(&mut world);
+
+        assert_eq!(world.get_component::<Health>(e).unwrap().0, 42);
+    }
+
+    #[test]
+    fn commands_remove_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert_component(e, Health(100)).unwrap();
+
+        let mut cmds = Commands::new();
+        cmds.remove::<Health>(e);
+        cmds.apply(&mut world);
+
+        assert!(!world.has_component::<Health>(e));
+    }
+
+    #[test]
+    fn commands_empty() {
+        let cmds = Commands::new();
+        assert!(cmds.is_empty());
+        assert_eq!(cmds.len(), 0);
+    }
+
+    #[test]
+    fn commands_mixed() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        world.insert_component(e1, Health(100)).unwrap();
+
+        let mut cmds = Commands::new();
+        cmds.spawn().with(Health(50));
+        cmds.despawn(e1);
+        cmds.apply(&mut world);
+
+        assert_eq!(world.entity_count(), 1);
+    }
+
+    // -- ChangeTracker tests --
+
+    #[test]
+    fn change_tracker_basic() {
+        let mut tracker = ChangeTracker::new();
+        let e = Entity::new(0, 0);
+
+        tracker.mark_changed::<Health>(e, 5);
+        assert!(tracker.is_changed::<Health>(e, 4));
+        assert!(!tracker.is_changed::<Health>(e, 5));
+        assert!(!tracker.is_changed::<Health>(e, 6));
+    }
+
+    #[test]
+    fn change_tracker_added() {
+        let mut tracker = ChangeTracker::new();
+        let e = Entity::new(0, 0);
+
+        tracker.mark_added::<Health>(e, 3);
+        assert!(tracker.is_added::<Health>(e, 2));
+        assert!(!tracker.is_added::<Health>(e, 3));
+    }
+
+    #[test]
+    fn change_tracker_clear_entity() {
+        let mut tracker = ChangeTracker::new();
+        let e = Entity::new(0, 0);
+
+        tracker.mark_changed::<Health>(e, 5);
+        tracker.mark_added::<Health>(e, 5);
+        tracker.clear_entity(e);
+
+        assert!(!tracker.is_changed::<Health>(e, 0));
+        assert!(!tracker.is_added::<Health>(e, 0));
+    }
+
+    #[test]
+    fn change_tracker_different_types() {
+        let mut tracker = ChangeTracker::new();
+        let e = Entity::new(0, 0);
+
+        tracker.mark_changed::<Health>(e, 5);
+        assert!(tracker.is_changed::<Health>(e, 4));
+        assert!(!tracker.is_changed::<Velocity>(e, 4));
     }
 }

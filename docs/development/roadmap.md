@@ -38,18 +38,20 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 
 ## Priority — Next Work
 
-### P1 — Blocking for shipping quality
+### P1 — Shipping Quality (2026-03-24, partial)
+- Commands buffer — deferred spawn/despawn/insert, applied between stages
+- ChangeTracker — per-component `mark_changed`/`mark_added`/`is_changed`/`is_added` with tick comparison
+- OrthoCamera — from_screen, centered, orthographic projection matrix
+- Gizmos resource — line, draw_box, sphere, ray, point commands, per-frame accumulator
 
-- [ ] **Entity commands buffer** — deferred spawn/despawn/insert from systems without `&mut World`, applied between stages
-- [ ] **Component change detection** — `Changed<T>`, `Added<T>` filters on components (resources already have it)
+### P1 — Remaining
+
 - [ ] **Client-side prediction** — rollback/resimulation for multiplayer latency compensation
 - [ ] **Entity interpolation** — smooth position updates between network ticks instead of snapping
 - [ ] **Frustum culling** — visibility testing before submitting draw calls (hisab AABB + camera frustum)
 - [ ] **Audio mix buses** — SFX/music/ambient/dialogue volume groups with independent control
-- [ ] **Debug gizmos API** — expose `draw_box()`, `draw_sphere()`, `draw_ray()` from game code through kiran
 - [ ] **In-game debug overlay** — render profiler data (FPS, system timings, entity count) on screen
 - [ ] **Component-generic replication** — sync rotation, velocity, health, animation state — not just position
-- [ ] **Orthographic camera** — 2D games need ortho projection, not just perspective
 
 ### P2 — Polish and completeness
 

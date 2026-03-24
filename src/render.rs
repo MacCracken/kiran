@@ -79,6 +79,69 @@ impl Camera {
     }
 }
 
+/// Orthographic camera for 2D rendering.
+#[derive(Debug, Clone)]
+pub struct OrthoCamera {
+    /// Left boundary.
+    pub left: f32,
+    /// Right boundary.
+    pub right: f32,
+    /// Bottom boundary.
+    pub bottom: f32,
+    /// Top boundary.
+    pub top: f32,
+    /// Near plane.
+    pub near: f32,
+    /// Far plane.
+    pub far: f32,
+}
+
+impl OrthoCamera {
+    /// Create an orthographic camera from screen dimensions.
+    /// Origin at top-left, Y points down (screen space).
+    pub fn from_screen(width: f32, height: f32) -> Self {
+        Self {
+            left: 0.0,
+            right: width,
+            bottom: height,
+            top: 0.0,
+            near: -1.0,
+            far: 1.0,
+        }
+    }
+
+    /// Create a centered orthographic camera.
+    /// Origin at center, extends half_width/half_height in each direction.
+    pub fn centered(half_width: f32, half_height: f32) -> Self {
+        Self {
+            left: -half_width,
+            right: half_width,
+            bottom: -half_height,
+            top: half_height,
+            near: -1.0,
+            far: 1.0,
+        }
+    }
+
+    /// Compute the orthographic projection matrix.
+    pub fn projection_matrix(&self) -> Mat4 {
+        Mat4::orthographic_rh(
+            self.left,
+            self.right,
+            self.bottom,
+            self.top,
+            self.near,
+            self.far,
+        )
+    }
+}
+
+impl Default for OrthoCamera {
+    fn default() -> Self {
+        Self::from_screen(1280.0, 720.0)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Camera controllers
 // ---------------------------------------------------------------------------
@@ -573,5 +636,39 @@ mod tests {
         let decoded: MeshDesc = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.mesh_id, 7);
         assert_eq!(decoded.material_id, 3);
+    }
+
+    // -- OrthoCamera tests --
+
+    #[test]
+    fn ortho_camera_from_screen() {
+        let cam = OrthoCamera::from_screen(800.0, 600.0);
+        assert_eq!(cam.left, 0.0);
+        assert_eq!(cam.right, 800.0);
+        assert_eq!(cam.top, 0.0);
+        assert_eq!(cam.bottom, 600.0);
+    }
+
+    #[test]
+    fn ortho_camera_centered() {
+        let cam = OrthoCamera::centered(10.0, 7.5);
+        assert_eq!(cam.left, -10.0);
+        assert_eq!(cam.right, 10.0);
+        assert_eq!(cam.top, 7.5);
+        assert_eq!(cam.bottom, -7.5);
+    }
+
+    #[test]
+    fn ortho_camera_projection_not_identity() {
+        let cam = OrthoCamera::default();
+        let proj = cam.projection_matrix();
+        assert_ne!(proj, Mat4::IDENTITY);
+    }
+
+    #[test]
+    fn ortho_camera_default() {
+        let cam = OrthoCamera::default();
+        assert_eq!(cam.right, 1280.0);
+        assert_eq!(cam.bottom, 720.0);
     }
 }
