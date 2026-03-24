@@ -611,3 +611,53 @@ position = [300.0, 200.0, 0.0]
     assert_eq!(verts[0].position[0], 100.0 + 16.0 - 16.0); // centered
     assert_eq!(verts[4].position[0], 300.0 + 16.0 - 16.0);
 }
+
+#[cfg(feature = "rendering")]
+#[test]
+fn soorat_re_exports_complete() {
+    use kiran::gpu::{
+        CameraUniforms, Color, FrameStats, LightUniforms, LineBatch, LineVertex,
+        SooratWindowConfig, Sprite, SpriteBatch, UvRect, Vertex2D, Vertex3D, batch_to_vertices,
+    };
+
+    // Type size checks (no GPU required)
+    assert_eq!(std::mem::size_of::<Vertex2D>(), 32);
+    assert_eq!(std::mem::size_of::<Vertex3D>(), 48);
+    assert_eq!(std::mem::size_of::<CameraUniforms>(), 128);
+    assert_eq!(std::mem::size_of::<LightUniforms>(), 48);
+    assert!(std::mem::size_of::<Color>() > 0);
+    assert!(std::mem::size_of::<FrameStats>() > 0);
+    assert!(std::mem::size_of::<LineVertex>() > 0);
+    assert!(std::mem::size_of::<UvRect>() > 0);
+    assert!(std::mem::size_of::<SooratWindowConfig>() > 0);
+
+    // Sprite batch → vertex conversion
+    let mut batch = SpriteBatch::new();
+    batch.push(Sprite::new(0.0, 0.0, 10.0, 10.0).with_color(Color::RED));
+    let (verts, indices) = batch_to_vertices(&batch);
+    assert_eq!(verts.len(), 4);
+    assert_eq!(indices.len(), 6);
+
+    // LineBatch (CPU-side, no GPU)
+    let mut lines = LineBatch::new();
+    lines.line([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], Color::GREEN);
+    assert_eq!(lines.line_count(), 1);
+    lines.wire_box([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], Color::BLUE);
+    assert_eq!(lines.line_count(), 13); // 1 + 12 box edges
+}
+
+#[cfg(feature = "rendering")]
+#[test]
+fn soorat_no_name_collision_with_kiran_material() {
+    // kiran::scene::Material and kiran::gpu::SooratMaterial are different types
+    use kiran::gpu::SooratMaterial;
+    use kiran::scene::Material as SceneMaterial;
+
+    // They're different types — this should compile
+    let _scene_mat = SceneMaterial {
+        color: [1.0, 0.0, 0.0, 1.0],
+        texture: None,
+    };
+    // SooratMaterial requires GPU device — just check type exists
+    assert!(std::mem::size_of::<SooratMaterial>() > 0);
+}
