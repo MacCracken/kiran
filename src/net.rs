@@ -44,6 +44,15 @@ pub struct Replicated;
 // Network messages
 // ---------------------------------------------------------------------------
 
+/// Message reliability mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Reliability {
+    /// Fire-and-forget — no retransmit, no ordering. Use for state updates.
+    Unreliable,
+    /// Guaranteed delivery with ordering. Use for RPCs, events.
+    Reliable,
+}
+
 /// A network message sent between nodes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum NetMessage {
@@ -204,6 +213,142 @@ impl NetState {
     /// Is this node a client?
     pub fn is_client(&self) -> bool {
         self.role == NetRole::Client
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reliable channel
+// ---------------------------------------------------------------------------
+
+/// A tagged message with reliability and sequence number.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaggedMessage {
+    pub message: NetMessage,
+    pub reliability: Reliability,
+    pub sequence: u64,
+}
+
+/// Reliable channel — tracks outbound messages and handles acks/retransmit.
+pub struct ReliableChannel {
+    next_sequence: u64,
+    /// Unacknowledged reliable messages (sequence → message).
+    pending_ack: std::collections::HashMap<u64, TaggedMessage>,
+    /// Received reliable sequence numbers (for dedup).
+    received: std::collections::HashSet<u64>,
+}
+
+impl Default for ReliableChannel {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ReliableChannel {
+    pub fn new() -> Self {
+        Self {
+            next_sequence: 1,
+            pending_ack: std::collections::HashMap::new(),
+            received: std::collections::HashSet::new(),
+        }
+    }
+
+    /// Send a message with the specified reliability.
+    pub fn send(&mut self, message: NetMessage, reliability: Reliability) -> TaggedMessage {
+        let seq = self.next_sequence;
+        self.next_sequence += 1;
+        let tagged = TaggedMessage {
+            message,
+            reliability,
+            sequence: seq,
+        };
+        if reliability == Reliability::Reliable {
+            self.pending_ack.insert(seq, tagged.clone());
+        }
+        tagged
+    }
+
+    /// Acknowledge receipt of a reliable message.
+    pub fn ack(&mut self, sequence: u64) {
+        self.pending_ack.remove(&sequence);
+    }
+
+    /// Get messages that need retransmitting (unacked reliable messages).
+    pub fn pending_retransmit(&self) -> Vec<&TaggedMessage> {
+        self.pending_ack.values().collect()
+    }
+
+    /// Check if an incoming reliable message is a duplicate.
+    /// Returns true if this is a new message (not seen before).
+    pub fn receive(&mut self, sequence: u64) -> bool {
+        self.received.insert(sequence)
+    }
+
+    /// Number of unacknowledged reliable messages.
+    pub fn pending_count(&self) -> usize {
+        self.pending_ack.len()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Interest management
+// ---------------------------------------------------------------------------
+
+/// Area-of-interest filter — determines which entities to replicate to each client.
+pub struct InterestArea {
+    /// Center position of the interest area.
+    pub center: [f32; 3],
+    /// Radius of interest (entities beyond this are not replicated).
+    pub radius: f32,
+}
+
+impl InterestArea {
+    pub fn new(center: [f32; 3], radius: f32) -> Self {
+        Self { center, radius }
+    }
+
+    /// Check if a position is within the interest area.
+    pub fn contains(&self, position: [f32; 3]) -> bool {
+        let dx = position[0] - self.center[0];
+        let dy = position[1] - self.center[1];
+        let dz = position[2] - self.center[2];
+        (dx * dx + dy * dy + dz * dz) <= self.radius * self.radius
+    }
+}
+
+/// Build a snapshot filtered by interest area — only entities within range.
+pub fn build_snapshot_filtered(
+    world: &World,
+    tick: u64,
+    entities: &[Entity],
+    interest: &InterestArea,
+) -> StateSnapshot {
+    use crate::scene::Position;
+
+    let mut states = Vec::new();
+    for &entity in entities {
+        if !world.is_alive(entity) {
+            continue;
+        }
+        let position = world
+            .get_component::<Position>(entity)
+            .map(|p| [p.0.x, p.0.y, p.0.z])
+            .unwrap_or([0.0, 0.0, 0.0]);
+
+        if !interest.contains(position) {
+            continue;
+        }
+
+        let owner = world.get_component::<NetOwner>(entity).map(|o| o.0.clone());
+        states.push(EntityState {
+            entity_id: entity.id(),
+            position,
+            owner,
+        });
+    }
+
+    StateSnapshot {
+        tick,
+        entities: states,
     }
 }
 
@@ -1193,5 +1338,153 @@ mod tests {
         let buf = world.get_component_mut::<PredictionBuffer>(e).unwrap();
         buf.record([1.0, 0.0, 0.0], 1);
         assert_eq!(buf.len(), 1);
+    }
+
+    // -- Reliable channel tests --
+
+    #[test]
+    fn reliable_channel_send_unreliable() {
+        let mut ch = ReliableChannel::new();
+        let msg = ch.send(
+            NetMessage::PlayerJoin {
+                node_id: "p1".into(),
+            },
+            Reliability::Unreliable,
+        );
+        assert_eq!(msg.reliability, Reliability::Unreliable);
+        assert_eq!(ch.pending_count(), 0); // not tracked
+    }
+
+    #[test]
+    fn reliable_channel_send_reliable() {
+        let mut ch = ReliableChannel::new();
+        let msg = ch.send(
+            NetMessage::PlayerJoin {
+                node_id: "p1".into(),
+            },
+            Reliability::Reliable,
+        );
+        assert_eq!(msg.reliability, Reliability::Reliable);
+        assert_eq!(ch.pending_count(), 1); // tracked for ack
+    }
+
+    #[test]
+    fn reliable_channel_ack() {
+        let mut ch = ReliableChannel::new();
+        let msg = ch.send(
+            NetMessage::PlayerLeave {
+                node_id: "p1".into(),
+            },
+            Reliability::Reliable,
+        );
+        assert_eq!(ch.pending_count(), 1);
+
+        ch.ack(msg.sequence);
+        assert_eq!(ch.pending_count(), 0);
+    }
+
+    #[test]
+    fn reliable_channel_dedup() {
+        let mut ch = ReliableChannel::new();
+        assert!(ch.receive(1)); // new
+        assert!(!ch.receive(1)); // duplicate
+        assert!(ch.receive(2)); // new
+    }
+
+    #[test]
+    fn reliable_channel_retransmit() {
+        let mut ch = ReliableChannel::new();
+        ch.send(
+            NetMessage::PlayerJoin {
+                node_id: "a".into(),
+            },
+            Reliability::Reliable,
+        );
+        ch.send(
+            NetMessage::PlayerJoin {
+                node_id: "b".into(),
+            },
+            Reliability::Reliable,
+        );
+
+        let pending = ch.pending_retransmit();
+        assert_eq!(pending.len(), 2);
+    }
+
+    // -- Interest management tests --
+
+    #[test]
+    fn interest_area_contains() {
+        let area = InterestArea::new([0.0, 0.0, 0.0], 10.0);
+        assert!(area.contains([5.0, 0.0, 0.0]));
+        assert!(area.contains([0.0, 0.0, 0.0]));
+        assert!(!area.contains([15.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn interest_area_boundary() {
+        let area = InterestArea::new([0.0, 0.0, 0.0], 10.0);
+        // Exactly on boundary
+        assert!(area.contains([10.0, 0.0, 0.0]));
+        // Just outside
+        assert!(!area.contains([10.1, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn build_snapshot_filtered_test() {
+        let mut world = World::new();
+        let near = world.spawn();
+        let far = world.spawn();
+        world
+            .insert_component(near, Position(hisab::Vec3::new(5.0, 0.0, 0.0)))
+            .unwrap();
+        world
+            .insert_component(far, Position(hisab::Vec3::new(100.0, 0.0, 0.0)))
+            .unwrap();
+
+        let interest = InterestArea::new([0.0, 0.0, 0.0], 20.0);
+        let snapshot = build_snapshot_filtered(&world, 1, &[near, far], &interest);
+
+        assert_eq!(snapshot.entities.len(), 1); // only near entity
+        assert_eq!(snapshot.entities[0].entity_id, near.id());
+    }
+
+    #[test]
+    fn build_snapshot_filtered_all_in_range() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        world
+            .insert_component(e1, Position(hisab::Vec3::new(1.0, 0.0, 0.0)))
+            .unwrap();
+        world
+            .insert_component(e2, Position(hisab::Vec3::new(2.0, 0.0, 0.0)))
+            .unwrap();
+
+        let interest = InterestArea::new([0.0, 0.0, 0.0], 100.0);
+        let snapshot = build_snapshot_filtered(&world, 1, &[e1, e2], &interest);
+        assert_eq!(snapshot.entities.len(), 2);
+    }
+
+    #[test]
+    fn reliability_serde() {
+        let r = Reliability::Reliable;
+        let json = serde_json::to_string(&r).unwrap();
+        let decoded: Reliability = serde_json::from_str(&json).unwrap();
+        assert_eq!(r, decoded);
+    }
+
+    #[test]
+    fn tagged_message_serde() {
+        let msg = TaggedMessage {
+            message: NetMessage::PlayerJoin {
+                node_id: "p1".into(),
+            },
+            reliability: Reliability::Reliable,
+            sequence: 42,
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let decoded: TaggedMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.sequence, 42);
     }
 }
