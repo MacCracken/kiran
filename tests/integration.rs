@@ -510,3 +510,104 @@ fn entity_from_id_integration() {
     let stale = kiran::Entity::from_id(e1.id());
     assert!(!world.is_alive(stale));
 }
+
+#[cfg(feature = "rendering")]
+#[test]
+fn soorat_renderer_full_data_flow() {
+    use kiran::gpu::{SooratRenderer, batch_to_vertices};
+    use kiran::render::{DrawCommand, RenderConfig, Renderer, SpriteDesc};
+
+    let mut renderer = SooratRenderer::new();
+    renderer.init(&RenderConfig::default()).unwrap();
+
+    // Simulate a game frame: submit sprites via kiran's Renderer trait
+    renderer.begin_frame().unwrap();
+    renderer
+        .submit(DrawCommand::Clear([0.1, 0.2, 0.3, 1.0]))
+        .unwrap();
+
+    for i in 0..10 {
+        renderer
+            .submit(DrawCommand::Sprite(SpriteDesc {
+                texture_id: 1,
+                x: i as f32 * 50.0,
+                y: 100.0,
+                width: 32.0,
+                height: 32.0,
+                rotation: 0.0,
+                color: [1.0, 1.0, 1.0, 1.0],
+            }))
+            .unwrap();
+    }
+
+    renderer
+        .submit(DrawCommand::SetCamera(Camera::default()))
+        .unwrap();
+    renderer.end_frame().unwrap();
+
+    // Verify collected data is correct
+    assert_eq!(renderer.sprite_count(), 10);
+    assert!(renderer.camera().is_some());
+    assert!((renderer.clear_color().r - 0.1).abs() < f32::EPSILON);
+
+    // Verify the batch can be converted to GPU-ready vertex data
+    let batch = renderer.sprite_batch();
+    let (verts, indices) = batch_to_vertices(batch);
+    assert_eq!(verts.len(), 40);
+    assert_eq!(indices.len(), 60);
+
+    // Verify vertex data is correct size (32 bytes per Vertex2D * 40 verts)
+    assert_eq!(std::mem::size_of_val(&verts[0]) * verts.len(), 32 * 40);
+}
+
+#[cfg(feature = "rendering")]
+#[test]
+fn soorat_renderer_scene_to_sprites() {
+    use kiran::gpu::{SooratRenderer, batch_to_vertices};
+    use kiran::render::{DrawCommand, RenderConfig, Renderer, SpriteDesc};
+
+    // Load a scene and convert entities to sprites
+    let mut world = World::new();
+    let scene = load_scene(
+        r#"
+name = "Render Test"
+[[entities]]
+name = "Player"
+position = [100.0, 200.0, 0.0]
+[[entities]]
+name = "Enemy"
+position = [300.0, 200.0, 0.0]
+"#,
+    )
+    .unwrap();
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+
+    // Build sprites from entity positions
+    let mut renderer = SooratRenderer::new();
+    renderer.init(&RenderConfig::default()).unwrap();
+    renderer.begin_frame().unwrap();
+
+    for &entity in &entities {
+        if let Some(pos) = world.get_component::<Position>(entity) {
+            renderer
+                .submit(DrawCommand::Sprite(SpriteDesc {
+                    texture_id: 0,
+                    x: pos.0.x,
+                    y: pos.0.y,
+                    width: 32.0,
+                    height: 32.0,
+                    rotation: 0.0,
+                    color: [1.0, 1.0, 1.0, 1.0],
+                }))
+                .unwrap();
+        }
+    }
+
+    renderer.end_frame().unwrap();
+    assert_eq!(renderer.sprite_count(), 2);
+
+    let (verts, _) = batch_to_vertices(renderer.sprite_batch());
+    // First sprite at (100, 200), second at (300, 200)
+    assert_eq!(verts[0].position[0], 100.0 + 16.0 - 16.0); // centered
+    assert_eq!(verts[4].position[0], 300.0 + 16.0 - 16.0);
+}

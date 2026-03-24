@@ -7,7 +7,7 @@
 pub use soorat::GpuContext;
 pub use soorat::color::Color;
 pub use soorat::pipeline::{SpritePipeline, batch_to_vertices};
-pub use soorat::sprite::{Sprite, SpriteBatch};
+pub use soorat::sprite::{Sprite, SpriteBatch, UvRect};
 pub use soorat::texture::{Texture, TextureCache};
 pub use soorat::vertex::{Vertex2D, Vertex3D};
 pub use soorat::window::{
@@ -23,7 +23,14 @@ use crate::render::{Camera, DrawCommand, RenderConfig, Renderer};
 /// GPU-accelerated renderer backed by soorat (wgpu).
 ///
 /// Implements kiran's `Renderer` trait, translating `DrawCommand`s to soorat
-/// sprite batches and GPU operations.
+/// sprite batches. This is a **data-layer bridge** — it collects and sorts
+/// sprites but does not perform GPU rendering directly. Actual GPU rendering
+/// happens through soorat's `Window::run()` + `SpritePipeline::draw()` which
+/// require a live window and surface.
+///
+/// For headless testing, this behaves like NullRenderer with soorat types.
+/// For real rendering, access `sprite_batch()` and `clear_color()` after
+/// `end_frame()` and pass them to soorat's pipeline.
 pub struct SooratRenderer {
     config: RenderConfig,
     initialized: bool,
@@ -128,6 +135,7 @@ impl Renderer for SooratRenderer {
                     color: Color::new(desc.color[0], desc.color[1], desc.color[2], desc.color[3]),
                     texture_id: desc.texture_id,
                     z_order: 0,
+                    uv: UvRect::FULL,
                 });
             }
             DrawCommand::Mesh(_desc) => {
