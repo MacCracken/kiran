@@ -28,9 +28,10 @@ pub mod gizmos;
 pub mod profiler;
 pub mod reload;
 pub mod script;
+pub mod state;
 
 // Re-export key types at crate root
 pub use world::{
-    ChangeTracker, Commands, Entity, EventBus, FnSystem, GameClock, KiranError, Result, Scheduler,
-    System, SystemStage, World,
+    Bundle, ChangeTracker, Commands, Entity, EventBus, FnSystem, GameClock, KiranError, Result,
+    Scheduler, System, SystemStage, World,
 };

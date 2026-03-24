@@ -170,13 +170,42 @@ pub enum GamepadAxis {
 pub enum InputEvent {
     KeyPressed(KeyCode),
     KeyReleased(KeyCode),
-    MouseMoved { x: f64, y: f64 },
+    MouseMoved {
+        x: f64,
+        y: f64,
+    },
     MouseButtonPressed(MouseButton),
     MouseButtonReleased(MouseButton),
-    MouseScroll { dx: f64, dy: f64 },
+    MouseScroll {
+        dx: f64,
+        dy: f64,
+    },
     GamepadButtonPressed(GamepadButton),
     GamepadButtonReleased(GamepadButton),
-    GamepadAxisMoved { axis: GamepadAxis, value: f64 },
+    GamepadAxisMoved {
+        axis: GamepadAxis,
+        value: f64,
+    },
+    /// Touch began/moved/ended.
+    Touch {
+        id: u64,
+        x: f64,
+        y: f64,
+        phase: TouchPhase,
+    },
+    /// Text character input (for UI text fields).
+    TextInput(char),
+    /// Cursor lock/unlock request.
+    CursorLock(bool),
+}
+
+/// Touch event phase.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum TouchPhase {
+    Started,
+    Moved,
+    Ended,
+    Cancelled,
 }
 
 // ---------------------------------------------------------------------------
@@ -305,6 +334,14 @@ pub struct InputState {
     just_released_gamepad: HashSet<GamepadButton>,
     /// Gamepad axis values.
     gamepad_axes: HashMap<GamepadAxis, f64>,
+    /// Active touch points.
+    touches: HashMap<u64, (f64, f64, TouchPhase)>,
+    /// Text input characters this frame.
+    text_input: Vec<char>,
+    /// Whether cursor is locked.
+    cursor_locked: bool,
+    /// Active input context (e.g., "gameplay", "menu", "ui").
+    pub context: String,
 }
 
 impl InputState {
@@ -357,6 +394,20 @@ impl InputState {
             }
             InputEvent::GamepadAxisMoved { axis, value } => {
                 self.gamepad_axes.insert(*axis, *value);
+            }
+            InputEvent::Touch { id, x, y, phase } => match phase {
+                TouchPhase::Ended | TouchPhase::Cancelled => {
+                    self.touches.remove(id);
+                }
+                _ => {
+                    self.touches.insert(*id, (*x, *y, *phase));
+                }
+            },
+            InputEvent::TextInput(ch) => {
+                self.text_input.push(*ch);
+            }
+            InputEvent::CursorLock(locked) => {
+                self.cursor_locked = *locked;
             }
         }
     }
@@ -426,6 +477,26 @@ impl InputState {
         (self.scroll_dx, self.scroll_dy)
     }
 
+    /// Get active touch points.
+    pub fn touches(&self) -> &HashMap<u64, (f64, f64, TouchPhase)> {
+        &self.touches
+    }
+
+    /// Get text input characters this frame.
+    pub fn text_input(&self) -> &[char] {
+        &self.text_input
+    }
+
+    /// Whether the cursor is locked.
+    pub fn is_cursor_locked(&self) -> bool {
+        self.cursor_locked
+    }
+
+    /// Set the active input context (e.g., "gameplay", "menu").
+    pub fn set_context(&mut self, context: impl Into<String>) {
+        self.context = context.into();
+    }
+
     /// Clear per-frame transient state (call at the start of each frame).
     pub fn clear_frame(&mut self) {
         self.just_pressed.clear();
@@ -438,6 +509,7 @@ impl InputState {
         self.mouse_dy = 0.0;
         self.scroll_dx = 0.0;
         self.scroll_dy = 0.0;
+        self.text_input.clear();
     }
 }
 

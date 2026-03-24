@@ -329,6 +329,76 @@ pub fn load_scene(toml_str: &str) -> Result<SceneDefinition, KiranError> {
     toml::from_str(toml_str).map_err(|e| KiranError::Scene(e.to_string()))
 }
 
+/// Save a world's entities back to a TOML scene string.
+pub fn save_scene(
+    world: &World,
+    entities: &[Entity],
+    name: &str,
+) -> std::result::Result<String, KiranError> {
+    let mut entity_defs = Vec::new();
+
+    for &entity in entities {
+        if !world.is_alive(entity) {
+            continue;
+        }
+        let entity_name = world
+            .get_component::<Name>(entity)
+            .map(|n| n.0.clone())
+            .unwrap_or_else(|| format!("entity_{}", entity.index()));
+
+        let position = world
+            .get_component::<Position>(entity)
+            .map(|p| [p.0.x, p.0.y, p.0.z])
+            .unwrap_or([0.0, 0.0, 0.0]);
+
+        let light_intensity = world
+            .get_component::<LightComponent>(entity)
+            .map(|l| l.intensity);
+
+        let tags = world
+            .get_component::<Tags>(entity)
+            .map(|t| t.0.clone())
+            .unwrap_or_default();
+
+        let material = world.get_component::<Material>(entity).cloned();
+
+        entity_defs.push(EntityDef {
+            name: entity_name,
+            position,
+            light_intensity,
+            tags,
+            material,
+            children: vec![],
+            prefab: None,
+            sound: None,
+            physics: None,
+        });
+    }
+
+    let scene = SceneDefinition {
+        name: name.to_string(),
+        description: String::new(),
+        prefabs: vec![],
+        entities: entity_defs,
+    };
+
+    toml::to_string(&scene).map_err(|e| KiranError::Scene(e.to_string()))
+}
+
+/// Spawn a prefab (scene definition) as a child of an existing entity at runtime.
+pub fn instance_scene(
+    world: &mut World,
+    scene: &SceneDefinition,
+    parent: Option<Entity>,
+) -> std::result::Result<Vec<Entity>, KiranError> {
+    let mut spawned = Vec::with_capacity(scene.entities.len());
+    for def in &scene.entities {
+        let entity = spawn_entity_def(world, def, &scene.prefabs, parent)?;
+        spawned.push(entity);
+    }
+    Ok(spawned)
+}
+
 /// Spawn all entities from a scene definition into a world.
 ///
 /// Returns the list of top-level spawned [`Entity`] handles.

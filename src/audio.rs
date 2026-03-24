@@ -21,6 +21,9 @@ pub struct SoundSource {
     pub source: String,
     /// Playback volume (0.0 = silent, 1.0 = full).
     pub volume: f32,
+    /// Playback pitch/speed (1.0 = normal, 2.0 = double speed).
+    #[serde(default = "default_pitch")]
+    pub pitch: f32,
     /// Whether this sound is spatial (affected by distance/panning).
     pub spatial: bool,
     /// Whether the sound loops.
@@ -31,6 +34,16 @@ pub struct SoundSource {
     /// Maximum audible distance (spatial only).
     #[serde(default = "default_max_distance")]
     pub max_distance: f32,
+    /// Which mix bus this sound belongs to.
+    #[serde(default)]
+    pub bus: MixBus,
+    /// Fade state (0.0 = silent, 1.0 = full, transitioning).
+    #[serde(skip)]
+    pub fade: f32,
+}
+
+fn default_pitch() -> f32 {
+    1.0
 }
 
 fn default_max_distance() -> f32 {
@@ -42,10 +55,13 @@ impl Default for SoundSource {
         Self {
             source: String::new(),
             volume: 1.0,
+            pitch: 1.0,
             spatial: true,
             looping: false,
             playing: false,
             max_distance: 50.0,
+            bus: MixBus::SFX,
+            fade: 1.0,
         }
     }
 }
@@ -76,6 +92,73 @@ impl SoundSource {
     pub fn with_max_distance(mut self, dist: f32) -> Self {
         self.max_distance = dist;
         self
+    }
+
+    pub fn with_pitch(mut self, pitch: f32) -> Self {
+        self.pitch = pitch;
+        self
+    }
+
+    pub fn with_bus(mut self, bus: MixBus) -> Self {
+        self.bus = bus;
+        self
+    }
+
+    /// Start a fade in (from 0 to 1).
+    pub fn fade_in(&mut self) {
+        self.fade = 0.0;
+        self.playing = true;
+    }
+
+    /// Start a fade out (will reach 0).
+    pub fn fade_out(&mut self) {
+        // fade will be stepped down externally
+    }
+
+    /// Step the fade by dt. Returns effective volume (volume * fade).
+    pub fn step_fade(&mut self, dt: f32, duration: f32) -> f32 {
+        if self.fade < 1.0 {
+            self.fade = (self.fade + dt / duration).min(1.0);
+        }
+        self.volume * self.fade
+    }
+}
+
+/// Sound pool — limits concurrent sounds of the same type.
+#[derive(Debug, Clone)]
+pub struct SoundPool {
+    /// Maximum concurrent sounds.
+    pub max_voices: usize,
+    /// Currently playing count.
+    pub active: usize,
+}
+
+impl SoundPool {
+    pub fn new(max_voices: usize) -> Self {
+        Self {
+            max_voices,
+            active: 0,
+        }
+    }
+
+    /// Try to acquire a voice. Returns true if allowed.
+    pub fn try_play(&mut self) -> bool {
+        if self.active < self.max_voices {
+            self.active += 1;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Release a voice.
+    pub fn release(&mut self) {
+        self.active = self.active.saturating_sub(1);
+    }
+
+    /// Is the pool full?
+    pub fn is_full(&self) -> bool {
+        self.active >= self.max_voices
     }
 }
 

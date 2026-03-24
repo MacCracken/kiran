@@ -646,6 +646,67 @@ pub trait System: Send {
 
     /// Human-readable name for debugging.
     fn name(&self) -> &str;
+
+    /// Systems this must run after (by name). Default: none.
+    fn after(&self) -> &[&str] {
+        &[]
+    }
+
+    /// Systems this must run before (by name). Default: none.
+    fn before(&self) -> &[&str] {
+        &[]
+    }
+}
+
+/// Insert multiple components on an entity atomically.
+pub fn insert_bundle(
+    world: &mut World,
+    entity: Entity,
+    components: Vec<(TypeId, Box<dyn Any + Send + Sync>)>,
+) -> Result<()> {
+    if !world.is_alive(entity) {
+        return Err(KiranError::EntityNotFound(entity));
+    }
+    let idx = entity.index() as usize;
+    for (tid, boxed) in components {
+        let storage = world.components.entry(tid).or_default();
+        if idx >= storage.len() {
+            storage.resize_with(idx + 1, || None);
+        }
+        storage[idx] = Some(boxed);
+    }
+    Ok(())
+}
+
+/// Helper macro-free bundle builder.
+pub struct Bundle {
+    components: Vec<(TypeId, Box<dyn Any + Send + Sync>)>,
+}
+
+impl Bundle {
+    pub fn new() -> Self {
+        Self {
+            components: Vec::new(),
+        }
+    }
+
+    /// Add a component to the bundle.
+    pub fn with<T: 'static + Send + Sync>(mut self, component: T) -> Self {
+        self.components
+            .push((TypeId::of::<T>(), Box::new(component)));
+        self
+    }
+
+    /// Insert all components onto an entity.
+    pub fn apply(self, world: &mut World, entity: Entity) -> Result<()> {
+        insert_bundle(world, entity, self.components)
+    }
+}
+
+impl Default for Bundle {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Runs systems in stage order: Input → Physics → GameLogic → Render.
@@ -1734,5 +1795,37 @@ mod tests {
         tracker.mark_changed::<Health>(e, 5);
         assert!(tracker.is_changed::<Health>(e, 4));
         assert!(!tracker.is_changed::<Velocity>(e, 4));
+    }
+
+    // -- Bundle tests --
+
+    #[test]
+    fn bundle_insert() {
+        let mut world = World::new();
+        let e = world.spawn();
+        Bundle::new()
+            .with(Health(100))
+            .with(Velocity { x: 1.0, y: 2.0 })
+            .apply(&mut world, e)
+            .unwrap();
+
+        assert_eq!(world.get_component::<Health>(e).unwrap().0, 100);
+        assert_eq!(world.get_component::<Velocity>(e).unwrap().x, 1.0);
+    }
+
+    #[test]
+    fn bundle_dead_entity() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.despawn(e).unwrap();
+        let result = Bundle::new().with(Health(1)).apply(&mut world, e);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn bundle_empty() {
+        let mut world = World::new();
+        let e = world.spawn();
+        Bundle::new().apply(&mut world, e).unwrap();
     }
 }

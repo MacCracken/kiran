@@ -661,3 +661,96 @@ fn soorat_no_name_collision_with_kiran_material() {
     // SooratMaterial requires GPU device — just check type exists
     assert!(std::mem::size_of::<SooratMaterial>() > 0);
 }
+
+#[test]
+fn scene_save_roundtrip() {
+    use kiran::scene::{load_scene, save_scene, spawn_scene};
+
+    let toml = r#"
+name = "Save Test"
+[[entities]]
+name = "Player"
+position = [1.0, 2.0, 3.0]
+tags = ["hero"]
+[[entities]]
+name = "Light"
+position = [0.0, 10.0, 0.0]
+light_intensity = 1.5
+"#;
+    let scene = load_scene(toml).unwrap();
+    let mut world = World::new();
+    let entities = spawn_scene(&mut world, &scene).unwrap();
+
+    let saved = save_scene(&world, &entities, "Save Test").unwrap();
+    assert!(saved.contains("Player"));
+    assert!(saved.contains("Light"));
+    assert!(saved.contains("hero"));
+
+    // Re-load the saved TOML
+    let reloaded = load_scene(&saved).unwrap();
+    assert_eq!(reloaded.entities.len(), 2);
+}
+
+#[test]
+fn scene_instance_as_child() {
+    use kiran::scene::{Name, instance_scene, load_scene, spawn_scene};
+
+    let parent_toml = r#"
+name = "Parent Scene"
+[[entities]]
+name = "Root"
+"#;
+    let child_toml = r#"
+name = "Child Scene"
+[[entities]]
+name = "Bullet"
+position = [1.0, 0.0, 0.0]
+"#;
+
+    let parent_scene = load_scene(parent_toml).unwrap();
+    let child_scene = load_scene(child_toml).unwrap();
+
+    let mut world = World::new();
+    let parents = spawn_scene(&mut world, &parent_scene).unwrap();
+    let root = parents[0];
+
+    // Instance child scene under root
+    let children = instance_scene(&mut world, &child_scene, Some(root)).unwrap();
+    assert_eq!(children.len(), 1);
+    assert_eq!(world.entity_count(), 2);
+
+    let bullet_name = world.get_component::<Name>(children[0]).unwrap();
+    assert_eq!(bullet_name.0, "Bullet");
+}
+
+#[test]
+fn bundle_integration() {
+    use kiran::Bundle;
+    use kiran::scene::{Name, Position};
+
+    let mut world = World::new();
+    let e = world.spawn();
+    Bundle::new()
+        .with(Name("Bundled".into()))
+        .with(Position(hisab::Vec3::new(5.0, 0.0, 0.0)))
+        .apply(&mut world, e)
+        .unwrap();
+
+    assert_eq!(world.get_component::<Name>(e).unwrap().0, "Bundled");
+    assert_eq!(world.get_component::<Position>(e).unwrap().0.x, 5.0);
+}
+
+#[test]
+fn game_state_machine_integration() {
+    use kiran::state::{NamedState, StateMachine};
+
+    let mut sm = StateMachine::new(Box::new(NamedState("menu".into())));
+    let playing = sm.add_state(Box::new(NamedState("playing".into())));
+
+    let mut world = World::new();
+    assert_eq!(sm.current_name(), "menu");
+
+    sm.transition_to(playing);
+    sm.apply_transition(&mut world);
+    assert_eq!(sm.current_name(), "playing");
+}

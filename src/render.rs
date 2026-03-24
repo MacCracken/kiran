@@ -191,8 +191,11 @@ impl AABB {
         (self.min + self.max) * 0.5
     }
 
-    /// Test if the AABB is inside a camera's view frustum (conservative test).
-    /// Uses the view-projection matrix to test all 8 corners.
+    /// Test if the AABB is potentially visible in a camera's view frustum.
+    /// Returns true if ANY corner projects inside clip space.
+    /// Note: this can produce false negatives for large AABBs that straddle
+    /// the frustum (all corners outside but the box intersects). For precise
+    /// culling, use plane-based frustum tests.
     pub fn is_visible(&self, view_proj: &Mat4) -> bool {
         let corners = [
             Vec3::new(self.min.x, self.min.y, self.min.z),

@@ -376,8 +376,8 @@ pub fn step_interpolation(world: &mut World, dt: f32) {
 /// Stores predicted state for rollback.
 #[derive(Debug, Clone)]
 pub struct PredictionBuffer {
-    /// Ring buffer of predicted positions indexed by tick.
-    history: Vec<([f32; 3], u64)>,
+    /// Ring buffer of predicted positions indexed by tick (VecDeque for O(1) eviction).
+    history: std::collections::VecDeque<([f32; 3], u64)>,
     /// Maximum history size.
     max_size: usize,
 }
@@ -385,7 +385,7 @@ pub struct PredictionBuffer {
 impl PredictionBuffer {
     pub fn new(max_size: usize) -> Self {
         Self {
-            history: Vec::with_capacity(max_size),
+            history: std::collections::VecDeque::with_capacity(max_size),
             max_size,
         }
     }
@@ -393,9 +393,9 @@ impl PredictionBuffer {
     /// Record a predicted position at a tick.
     pub fn record(&mut self, position: [f32; 3], tick: u64) {
         if self.history.len() >= self.max_size {
-            self.history.remove(0);
+            self.history.pop_front();
         }
-        self.history.push((position, tick));
+        self.history.push_back((position, tick));
     }
 
     /// Get the predicted position at a tick (for server reconciliation).
@@ -428,6 +428,67 @@ impl PredictionBuffer {
 
     pub fn is_empty(&self) -> bool {
         self.history.is_empty()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Component-generic replication
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Clock synchronization
+// ---------------------------------------------------------------------------
+
+/// Simple clock sync — tracks offset between local and server time.
+#[derive(Debug, Clone)]
+pub struct ClockSync {
+    /// Estimated offset: server_time = local_time + offset.
+    pub offset_ms: f64,
+    /// Round-trip time estimate.
+    pub rtt_ms: f64,
+    /// Number of samples taken.
+    pub samples: u32,
+}
+
+impl Default for ClockSync {
+    fn default() -> Self {
+        Self {
+            offset_ms: 0.0,
+            rtt_ms: 0.0,
+            samples: 0,
+        }
+    }
+}
+
+impl ClockSync {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record a ping/pong measurement.
+    /// `local_send`: local timestamp when ping was sent.
+    /// `server_time`: server timestamp from the pong.
+    /// `local_recv`: local timestamp when pong was received.
+    pub fn record_sample(&mut self, local_send: f64, server_time: f64, local_recv: f64) {
+        let rtt = local_recv - local_send;
+        let estimated_server_now = server_time + rtt / 2.0;
+        let offset = estimated_server_now - local_recv;
+
+        // Exponential moving average
+        let alpha = if self.samples == 0 { 1.0 } else { 0.1 };
+        self.offset_ms = self.offset_ms * (1.0 - alpha) + offset * alpha;
+        self.rtt_ms = self.rtt_ms * (1.0 - alpha) + rtt * alpha;
+        self.samples += 1;
+    }
+
+    /// Convert local time to estimated server time.
+    pub fn to_server_time(&self, local_ms: f64) -> f64 {
+        local_ms + self.offset_ms
+    }
+
+    /// Convert server time to estimated local time.
+    pub fn to_local_time(&self, server_ms: f64) -> f64 {
+        server_ms - self.offset_ms
     }
 }
 
@@ -1089,6 +1150,48 @@ mod tests {
         assert_eq!(world2.get_component::<NetOwner>(e2).unwrap().0, "player-1");
     }
 
-    // -- Mix bus (from audio.rs) --
-    // Audio mix bus tests are in audio.rs
+    // -- Step interpolation end-to-end --
+
+    #[test]
+    fn step_interpolation_updates_position() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world
+            .insert_component(e, Position(hisab::Vec3::ZERO))
+            .unwrap();
+        world
+            .insert_component(e, NetInterpolation::default())
+            .unwrap();
+
+        // Set target
+        {
+            let interp = world.get_component_mut::<NetInterpolation>(e).unwrap();
+            interp.set_target([10.0, 0.0, 0.0]);
+        }
+
+        // Step halfway
+        step_interpolation(&mut world, 0.5);
+
+        let pos = world.get_component::<Position>(e).unwrap();
+        assert!((pos.0.x - 5.0).abs() < 0.01);
+
+        // Step to completion
+        step_interpolation(&mut world, 0.5);
+
+        let pos = world.get_component::<Position>(e).unwrap();
+        assert!((pos.0.x - 10.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn prediction_buffer_as_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world
+            .insert_component(e, PredictionBuffer::new(64))
+            .unwrap();
+
+        let buf = world.get_component_mut::<PredictionBuffer>(e).unwrap();
+        buf.record([1.0, 0.0, 0.0], 1);
+        assert_eq!(buf.len(), 1);
+    }
 }
