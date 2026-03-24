@@ -148,6 +148,86 @@ impl SceneReloader {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Shader hot reload
+// ---------------------------------------------------------------------------
+
+/// Event published when a shader file changes on disk.
+#[derive(Debug, Clone)]
+pub struct ShaderChanged {
+    /// Path to the changed shader file.
+    pub path: PathBuf,
+}
+
+/// Watches shader files (.wgsl) for changes and publishes [`ShaderChanged`] events.
+pub struct ShaderReloader {
+    watcher: FileWatcher,
+}
+
+impl Default for ShaderReloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ShaderReloader {
+    pub fn new() -> Self {
+        Self {
+            watcher: FileWatcher::new(),
+        }
+    }
+
+    /// Start watching a shader file.
+    pub fn watch(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        self.watcher.watch(path)
+    }
+
+    /// Watch all `.wgsl` files in a directory (non-recursive).
+    pub fn watch_directory(&mut self, dir: impl AsRef<Path>) -> std::io::Result<usize> {
+        let mut count = 0;
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.extension().is_some_and(|ext| ext == "wgsl") {
+                self.watcher.watch(&path)?;
+                count += 1;
+            }
+        }
+        Ok(count)
+    }
+
+    /// Poll for changed shaders. Returns paths of modified shader files.
+    pub fn poll_changes(&mut self) -> Vec<PathBuf> {
+        self.watcher.poll_changes()
+    }
+
+    /// Poll and publish ShaderChanged events to the world's EventBus.
+    pub fn poll_and_notify(&mut self, world: &mut World) -> usize {
+        let changes = self.poll_changes();
+        let count = changes.len();
+
+        if count > 0
+            && let Some(bus) = world.get_resource_mut::<crate::world::EventBus>()
+        {
+            for path in changes {
+                tracing::info!(path = %path.display(), "shader changed");
+                bus.publish(ShaderChanged { path });
+            }
+        }
+
+        count
+    }
+
+    /// Number of watched shader files.
+    pub fn watch_count(&self) -> usize {
+        self.watcher.watch_count()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Scene diff
+// ---------------------------------------------------------------------------
+
 /// Apply a scene definition to the world, updating existing entities where possible.
 /// Entities matched by name are updated in place; new entities are spawned; removed entities are despawned.
 pub fn apply_scene_diff(
@@ -510,5 +590,52 @@ name = "Gone2"
 
         assert!(result.is_empty());
         assert_eq!(world.entity_count(), 0);
+    }
+
+    // -- Shader reload tests --
+
+    #[test]
+    fn shader_reloader_new() {
+        let reloader = ShaderReloader::new();
+        assert_eq!(reloader.watch_count(), 0);
+    }
+
+    #[test]
+    fn shader_reloader_watch_file() {
+        let mut reloader = ShaderReloader::new();
+        // Watch a real file (use Cargo.toml as stand-in)
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        reloader.watch(&path).unwrap();
+        assert_eq!(reloader.watch_count(), 1);
+
+        // No changes on first poll
+        let changes = reloader.poll_changes();
+        assert!(changes.is_empty());
+    }
+
+    #[test]
+    fn shader_reloader_watch_nonexistent() {
+        let mut reloader = ShaderReloader::new();
+        let result = reloader.watch("/nonexistent/shader.wgsl");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn shader_reloader_poll_and_notify() {
+        let mut reloader = ShaderReloader::new();
+        let mut world = World::new();
+        world.insert_resource(crate::world::EventBus::new());
+
+        // No files watched → no notifications
+        let count = reloader.poll_and_notify(&mut world);
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn shader_changed_event() {
+        let event = ShaderChanged {
+            path: PathBuf::from("shaders/sprite.wgsl"),
+        };
+        assert!(event.path.to_str().unwrap().contains("sprite.wgsl"));
     }
 }

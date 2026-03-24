@@ -100,11 +100,14 @@ Kiran does NOT own:
 - `run_scripts()` auto-detects .wasm sources → kavach execution, falls back to message state
 - `wasm_available()` health check
 
+### Shader Hot Reload (2026-03-23)
+
+- ShaderReloader — watches .wgsl files, publishes ShaderChanged events
+- watch_directory() — scan for all .wgsl in a path
+- poll_and_notify() — detect changes + publish to EventBus
+- 5 tests
+
 ## Remaining
-
-### Scripting
-
-- [ ] Hot reload for shaders
 
 ### V0.5 — Editor (remaining — in salai repo)
 
