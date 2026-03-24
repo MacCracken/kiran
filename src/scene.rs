@@ -137,9 +137,98 @@ pub struct PrefabDef {
 // ECS components used by scenes
 // ---------------------------------------------------------------------------
 
-/// 3D position component.
+/// 3D position component (legacy — prefer Transform for new code).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position(pub Vec3);
+
+/// Full transform: position + rotation + scale.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Transform {
+    pub position: Vec3,
+    pub rotation: hisab::Quat,
+    pub scale: Vec3,
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            rotation: hisab::Quat::IDENTITY,
+            scale: Vec3::ONE,
+        }
+    }
+}
+
+impl Transform {
+    pub fn from_position(position: Vec3) -> Self {
+        Self {
+            position,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_rotation(mut self, rotation: hisab::Quat) -> Self {
+        self.rotation = rotation;
+        self
+    }
+
+    pub fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Compute the 4x4 model matrix (TRS).
+    pub fn matrix(&self) -> hisab::Mat4 {
+        hisab::Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.position)
+    }
+}
+
+/// Global transform — computed from local Transform + parent hierarchy.
+/// Updated by `propagate_transforms()`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlobalTransform(pub hisab::Mat4);
+
+impl Default for GlobalTransform {
+    fn default() -> Self {
+        Self(hisab::Mat4::IDENTITY)
+    }
+}
+
+/// Propagate local transforms through the parent-child hierarchy.
+/// Call once per frame after scene mutations.
+pub fn propagate_transforms(world: &mut World) {
+    // Collect root entities (no parent) that have Transform
+    let roots: Vec<Entity> = world
+        .query::<Transform>()
+        .iter()
+        .filter(|(e, _)| !world.has_component::<Parent>(*e))
+        .map(|(e, _)| *e)
+        .collect();
+
+    for root in roots {
+        propagate_recursive(world, root, hisab::Mat4::IDENTITY);
+    }
+}
+
+fn propagate_recursive(world: &mut World, entity: Entity, parent_matrix: hisab::Mat4) {
+    let local_matrix = world
+        .get_component::<Transform>(entity)
+        .map(|t| t.matrix())
+        .unwrap_or(hisab::Mat4::IDENTITY);
+
+    let global = parent_matrix * local_matrix;
+    let _ = world.insert_component(entity, GlobalTransform(global));
+
+    // Get children list (clone to avoid borrow conflict)
+    let children = world
+        .get_component::<Children>(entity)
+        .map(|c| c.0.clone())
+        .unwrap_or_default();
+
+    for child in children {
+        propagate_recursive(world, child, global);
+    }
+}
 
 /// Name component — a human-readable label for an entity.
 #[derive(Debug, Clone, PartialEq)]
@@ -1209,5 +1298,115 @@ radius = 1.0
         let entities = spawn_scene(&mut world, &scene).unwrap();
         assert_eq!(entities.len(), 1000);
         assert_eq!(world.entity_count(), 1000);
+    }
+
+    // -- Transform tests --
+
+    #[test]
+    fn transform_default() {
+        let t = Transform::default();
+        assert_eq!(t.position, Vec3::ZERO);
+        assert_eq!(t.rotation, hisab::Quat::IDENTITY);
+        assert_eq!(t.scale, Vec3::ONE);
+    }
+
+    #[test]
+    fn transform_from_position() {
+        let t = Transform::from_position(Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(t.position, Vec3::new(1.0, 2.0, 3.0));
+        assert_eq!(t.scale, Vec3::ONE);
+    }
+
+    #[test]
+    fn transform_builder() {
+        let t =
+            Transform::from_position(Vec3::new(1.0, 0.0, 0.0)).with_scale(Vec3::new(2.0, 2.0, 2.0));
+        assert_eq!(t.scale, Vec3::new(2.0, 2.0, 2.0));
+    }
+
+    #[test]
+    fn transform_matrix_identity() {
+        let t = Transform::default();
+        let m = t.matrix();
+        assert_eq!(m, hisab::Mat4::IDENTITY);
+    }
+
+    #[test]
+    fn transform_matrix_translation() {
+        let t = Transform::from_position(Vec3::new(5.0, 10.0, 15.0));
+        let m = t.matrix();
+        // Translation is in the last column
+        let col3 = m.col(3);
+        assert_eq!(col3.x, 5.0);
+        assert_eq!(col3.y, 10.0);
+        assert_eq!(col3.z, 15.0);
+    }
+
+    #[test]
+    fn global_transform_default() {
+        let gt = GlobalTransform::default();
+        assert_eq!(gt.0, hisab::Mat4::IDENTITY);
+    }
+
+    #[test]
+    fn propagate_transforms_basic() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world
+            .insert_component(e, Transform::from_position(Vec3::new(3.0, 4.0, 5.0)))
+            .unwrap();
+
+        propagate_transforms(&mut world);
+
+        let gt = world.get_component::<GlobalTransform>(e).unwrap();
+        let col3 = gt.0.col(3);
+        assert_eq!(col3.x, 3.0);
+        assert_eq!(col3.y, 4.0);
+        assert_eq!(col3.z, 5.0);
+    }
+
+    #[test]
+    fn propagate_transforms_hierarchy() {
+        let mut world = World::new();
+        let parent = world.spawn();
+        let child = world.spawn();
+        world
+            .insert_component(parent, Transform::from_position(Vec3::new(10.0, 0.0, 0.0)))
+            .unwrap();
+        world
+            .insert_component(child, Transform::from_position(Vec3::new(5.0, 0.0, 0.0)))
+            .unwrap();
+        set_parent(&mut world, child, parent).unwrap();
+
+        propagate_transforms(&mut world);
+
+        // Child's global position should be parent + child = 15.0
+        let gt = world.get_component::<GlobalTransform>(child).unwrap();
+        let col3 = gt.0.col(3);
+        assert!((col3.x - 15.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn propagate_transforms_no_transform() {
+        let mut world = World::new();
+        let e = world.spawn();
+        // Entity without Transform — propagate should not crash
+        world
+            .insert_component(e, Name("no_transform".into()))
+            .unwrap();
+        propagate_transforms(&mut world); // no panic
+    }
+
+    #[test]
+    fn transform_as_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world
+            .insert_component(e, Transform::from_position(Vec3::new(1.0, 2.0, 3.0)))
+            .unwrap();
+        assert!(world.has_component::<Transform>(e));
+
+        let t = world.get_component::<Transform>(e).unwrap();
+        assert_eq!(t.position, Vec3::new(1.0, 2.0, 3.0));
     }
 }

@@ -342,6 +342,111 @@ impl World {
     pub fn entity_count(&self) -> usize {
         self.allocator.alive_count()
     }
+
+    // -----------------------------------------------------------------------
+    // Queries — iterate entities by component set
+    // -----------------------------------------------------------------------
+
+    /// Iterate all entities with component `A`.
+    /// Returns `(Entity, &A)` for each matching entity.
+    pub fn query<A: 'static + Send + Sync>(&self) -> Vec<(Entity, &A)> {
+        let tid = TypeId::of::<A>();
+        let Some(storage) = self.components.get(&tid) else {
+            return Vec::new();
+        };
+        let mut results = Vec::new();
+        for (idx, slot) in storage.iter().enumerate() {
+            if let Some(boxed) = slot
+                && let Some(component) = boxed.downcast_ref::<A>()
+                && idx < self.allocator.generations.len()
+                && self
+                    .allocator
+                    .is_alive(Entity::new(idx as u32, self.allocator.generations[idx]))
+            {
+                results.push((
+                    Entity::new(idx as u32, self.allocator.generations[idx]),
+                    component,
+                ));
+            }
+        }
+        results
+    }
+
+    /// Iterate all entities with components `A` and `B`.
+    pub fn query2<A: 'static + Send + Sync, B: 'static + Send + Sync>(
+        &self,
+    ) -> Vec<(Entity, &A, &B)> {
+        let tid_a = TypeId::of::<A>();
+        let tid_b = TypeId::of::<B>();
+        let (Some(storage_a), Some(storage_b)) =
+            (self.components.get(&tid_a), self.components.get(&tid_b))
+        else {
+            return Vec::new();
+        };
+        let len = storage_a
+            .len()
+            .min(storage_b.len())
+            .min(self.allocator.generations.len());
+        let mut results = Vec::new();
+        for idx in 0..len {
+            if let (Some(Some(box_a)), Some(Some(box_b))) = (storage_a.get(idx), storage_b.get(idx))
+                && let (Some(a), Some(b)) = (box_a.downcast_ref::<A>(), box_b.downcast_ref::<B>())
+                && self
+                    .allocator
+                    .is_alive(Entity::new(idx as u32, self.allocator.generations[idx]))
+            {
+                results.push((
+                    Entity::new(idx as u32, self.allocator.generations[idx]),
+                    a,
+                    b,
+                ));
+            }
+        }
+        results
+    }
+
+    /// Iterate all entities with components `A`, `B`, and `C`.
+    pub fn query3<A: 'static + Send + Sync, B: 'static + Send + Sync, C: 'static + Send + Sync>(
+        &self,
+    ) -> Vec<(Entity, &A, &B, &C)> {
+        let tid_a = TypeId::of::<A>();
+        let tid_b = TypeId::of::<B>();
+        let tid_c = TypeId::of::<C>();
+        let (Some(sa), Some(sb), Some(sc)) = (
+            self.components.get(&tid_a),
+            self.components.get(&tid_b),
+            self.components.get(&tid_c),
+        ) else {
+            return Vec::new();
+        };
+        let len = sa
+            .len()
+            .min(sb.len())
+            .min(sc.len())
+            .min(self.allocator.generations.len());
+        let mut results = Vec::new();
+        for idx in 0..len {
+            if let (Some(Some(ba)), Some(Some(bb)), Some(Some(bc))) =
+                (sa.get(idx), sb.get(idx), sc.get(idx))
+                && let (Some(a), Some(b), Some(c)) = (
+                    ba.downcast_ref::<A>(),
+                    bb.downcast_ref::<B>(),
+                    bc.downcast_ref::<C>(),
+                )
+                && self
+                    .allocator
+                    .is_alive(Entity::new(idx as u32, self.allocator.generations[idx]))
+            {
+                results.push((
+                    Entity::new(idx as u32, self.allocator.generations[idx]),
+                    a,
+                    b,
+                    c,
+                ));
+            }
+        }
+        results
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1257,5 +1362,83 @@ mod tests {
         assert_eq!(world.tick(), 1);
         world.increment_tick();
         assert_eq!(world.tick(), 2);
+    }
+
+    // -- Query tests --
+
+    #[test]
+    fn query_single_component() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        let _e3 = world.spawn();
+        world.insert_component(e1, Health(100)).unwrap();
+        world.insert_component(e2, Health(50)).unwrap();
+        // e3 has no Health
+
+        let results = world.query::<Health>();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].1.0, 100);
+        assert_eq!(results[1].1.0, 50);
+    }
+
+    #[test]
+    fn query_two_components() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        world.insert_component(e1, Health(100)).unwrap();
+        world
+            .insert_component(e1, Velocity { x: 1.0, y: 2.0 })
+            .unwrap();
+        world.insert_component(e2, Health(50)).unwrap();
+        // e2 has no Velocity
+
+        let results = world.query2::<Health, Velocity>();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1.0, 100);
+        assert_eq!(results[0].2.x, 1.0);
+    }
+
+    #[test]
+    fn query_empty_world() {
+        let world = World::new();
+        let results = world.query::<Health>();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn query_no_matches() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world.insert_component(e, Health(100)).unwrap();
+
+        let results = world.query::<Velocity>();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn query_excludes_despawned() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        world.insert_component(e1, Health(100)).unwrap();
+        world.insert_component(e2, Health(50)).unwrap();
+        world.despawn(e1).unwrap();
+
+        let results = world.query::<Health>();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].1.0, 50);
+    }
+
+    #[test]
+    fn query_1000_entities() {
+        let mut world = World::new();
+        for i in 0..1000 {
+            let e = world.spawn();
+            world.insert_component(e, Health(i)).unwrap();
+        }
+        let results = world.query::<Health>();
+        assert_eq!(results.len(), 1000);
     }
 }

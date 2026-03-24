@@ -152,6 +152,9 @@ pub struct InputState {
     pressed_buttons: HashSet<MouseButton>,
     mouse_x: f64,
     mouse_y: f64,
+    mouse_dx: f64,
+    mouse_dy: f64,
+    mouse_initialized: bool,
     scroll_dx: f64,
     scroll_dy: f64,
     /// Keys pressed this frame (for "just pressed" queries).
@@ -182,8 +185,13 @@ impl InputState {
                 self.just_released.insert(*key);
             }
             InputEvent::MouseMoved { x, y } => {
+                if self.mouse_initialized {
+                    self.mouse_dx += x - self.mouse_x;
+                    self.mouse_dy += y - self.mouse_y;
+                }
                 self.mouse_x = *x;
                 self.mouse_y = *y;
+                self.mouse_initialized = true;
             }
             InputEvent::MouseButtonPressed(btn) => {
                 if self.pressed_buttons.insert(*btn) {
@@ -236,6 +244,11 @@ impl InputState {
         (self.mouse_x, self.mouse_y)
     }
 
+    /// Mouse movement delta this frame (for FPS camera control).
+    pub fn mouse_delta(&self) -> (f64, f64) {
+        (self.mouse_dx, self.mouse_dy)
+    }
+
     /// Accumulated scroll delta this frame.
     pub fn scroll_delta(&self) -> (f64, f64) {
         (self.scroll_dx, self.scroll_dy)
@@ -247,6 +260,8 @@ impl InputState {
         self.just_released.clear();
         self.just_pressed_buttons.clear();
         self.just_released_buttons.clear();
+        self.mouse_dx = 0.0;
+        self.mouse_dy = 0.0;
         self.scroll_dx = 0.0;
         self.scroll_dy = 0.0;
     }
@@ -425,5 +440,32 @@ mod tests {
             let decoded: InputEvent = serde_json::from_str(&json).unwrap();
             assert_eq!(*event, decoded);
         }
+    }
+
+    #[test]
+    fn mouse_delta() {
+        let mut state = InputState::new();
+        // First move initializes position, no delta
+        state.process_event(&InputEvent::MouseMoved { x: 100.0, y: 200.0 });
+        assert_eq!(state.mouse_delta(), (0.0, 0.0));
+
+        state.clear_frame();
+
+        // Second move produces delta
+        state.process_event(&InputEvent::MouseMoved { x: 110.0, y: 205.0 });
+        assert_eq!(state.mouse_delta(), (10.0, 5.0));
+
+        state.clear_frame();
+        assert_eq!(state.mouse_delta(), (0.0, 0.0));
+    }
+
+    #[test]
+    fn mouse_delta_accumulates() {
+        let mut state = InputState::new();
+        // Initialize
+        state.process_event(&InputEvent::MouseMoved { x: 10.0, y: 20.0 });
+        // Subsequent moves accumulate delta
+        state.process_event(&InputEvent::MouseMoved { x: 30.0, y: 25.0 });
+        assert_eq!(state.mouse_delta(), (20.0, 5.0));
     }
 }
