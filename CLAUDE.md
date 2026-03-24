@@ -2,18 +2,19 @@
 
 ## Project Identity
 
-**Kiran** (Sanskrit: ray of light) — AI-native game engine — ECS, game loop, scene, audio, physics, scripting, hot reload
+**Kiran** (Sanskrit: ray of light) — AI-native game engine — ECS, game loop, scene, audio, physics, rendering, scripting, multiplayer, profiling, asset pipeline
 
 - **Type**: Flat crate with binary (CLI)
 - **License**: GPL-3.0
-- **MSRV**: 1.89
-- **Version**: SemVer 0.D.M pre-1.0
+- **Version**: 0.23.3
 
 ## Consumers
 
 joshua (simulation layer), salai (editor)
 
-**Note**: Composes soorat (rendering), impetus (physics), dhvani (audio), prakash (optics), bhava (NPC emotion).
+**Composes**: hisab (math), impetus (physics), soorat (rendering), dhvani (audio), prakash (optics), majra (multiplayer), kavach (scripting)
+
+**Modules**: world, scene, input, render, gpu, audio, physics, net, script, ai, reload, profiler, asset
 ## Development Process
 
 ### P(-1): Scaffold Hardening (before any new features)

@@ -4,6 +4,13 @@ version = "0.23.3"
 edition = "2024"
 license = "GPL-3.0"
 description = "Kiran — AI-native game engine for AGNOS"
+homepage = "https://github.com/MacCracken/kiran"
+repository = "https://github.com/MacCracken/kiran"
+readme = "README.md"
+documentation = "https://docs.rs/kiran"
+keywords = ["game-engine", "ecs", "physics", "rendering", "audio"]
+categories = ["game-engines", "rendering"]
+exclude = [".claude/", ".github/", "docs/", "scripts/"]
 
 [features]
 default = []
