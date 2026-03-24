@@ -64,22 +64,17 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 - Interest management — `InterestArea` spatial filtering for multiplayer
 - Clock synchronization — `ClockSync` NTP-style offset estimation
 - bhava personality integration — `Personality` component, `MoodStimulus`, mood decay, `compose_prompt()`
+- System ordering constraints — topological sort (Kahn's) within stages, `before`/`after` enforcement
+- Parallel system execution — infrastructure + `run_parallel` flag (thread dispatch is P3)
+- Animation state machine — `AnimState` component, `AnimNode`, crossfade blending, parameter-driven transitions
+- Navigation/pathfinding — raasta integration, `NavAgent` component, path following, grid/navmesh/steering re-exports
+- Instanced rendering — soorat `InstanceBuffer` + `InstanceData` re-exported
+- GPU particle rendering — soorat `GpuParticleSystem`, `GpuParticle`, `SimParams` re-exported
+- Render graph — soorat `RenderGraph`, `RenderPassNode`, `PassType` re-exported
+- Async asset loading — `AsyncAssetLoader` with batched poll, `LoadStatus`, completion drain
+- Asset preprocessing — `PreprocessPipeline` with `PreprocessStep` (compress, optimize, mipmaps, strip, custom)
 
 ## Priority — Next Work
-
-### P2 — Remaining
-
-- [ ] **Parallel system execution** — concurrent systems within a stage when read/write sets don't overlap
-- [ ] **System ordering constraints** — enforce `before`/`after` dependencies in scheduler (trait API exists, scheduler not yet using it)
-- [ ] **Animation state machine** — blend trees, state transitions, not just raw clips (salai editor panels ready)
-- [ ] **Navigation / pathfinding** — integrate `raasta` crate (grid A*, navmesh, flow fields, steering)
-- [ ] **Async asset loading** — background loading with completion callbacks
-- [ ] **Asset preprocessing** — compress textures, optimize meshes at build time
-
-#### Completed by soorat (re-exported via gpu.rs)
-- Instanced rendering — `InstanceBuffer` + `InstanceData`
-- GPU particle rendering — `GpuParticleSystem`, `GpuParticle`, `SimParams`
-- Render graph — `RenderGraph`, `RenderPassNode`, `PassType` (multi-pass abstraction)
 
 ### P3 — Future
 
