@@ -10,14 +10,15 @@
 Kiran owns the **engine core**: ECS, game loop, scene management, input, rendering integration, and physics integration. It is the thin orchestration layer that composes AGNOS shared crates into a game engine.
 
 Kiran does NOT own:
-- **Physics simulation** → impetus (rigid bodies, collision, particles, spatial hash)
-- **Higher math** → hisab (vectors, geometry, calculus, numerical methods, spatial structures)
-- **Simulation / AI NPCs** → joshua (headless sim, NPC agents, deterministic replay)
-- **Emotion / personality** → bhava (mood vectors, trait spectrums, sentiment)
-- **Audio** → dhvani (spatial audio, DSP, mixing)
-- **Rendering backend** → soorat (wgpu rendering engine)
-- **Optics / color science** → prakash (ray optics, spectral color, PBR)
-- **Multiplayer** → majra (pub/sub, relay, datagrams)
+- **Physics simulation** → impetus
+- **Higher math** → hisab (wraps glam)
+- **Simulation / AI NPCs** → joshua
+- **Emotion / personality** → bhava
+- **Audio** → dhvani
+- **Rendering backend** → soorat (wgpu)
+- **Optics / color science** → prakash
+- **Multiplayer transport** → majra
+- **Scripting sandbox** → kavach (WASM)
 
 ## Completed
 
@@ -32,12 +33,12 @@ Kiran does NOT own:
 - TOML scene format (entities, position, light, tags)
 - Scene loading and entity spawning
 - Full KeyCode/MouseButton input with edge-triggered queries
-- Renderer trait, Camera with glam view/projection matrices
+- Renderer trait, Camera with hisab view/projection matrices
 - SpriteDesc, MeshDesc, DrawCommand, NullRenderer
 - Daimon/hoosh AI client (feature-gated)
 - Impetus physics bridge (feature-gated)
 - CLI: `kiran run` and `kiran check`
-- Criterion benchmarks (40) with CSV history tracking
+- Criterion benchmarks (45) with CSV history tracking
 - CI pipeline, Makefile, deny.toml, codecov
 
 ### V0.2 — System Scheduling, Scene Hierarchy, Camera Controllers (2026-03-23)
@@ -57,102 +58,78 @@ Kiran does NOT own:
 - Sound definitions in scene TOML, spatial gain/pan calculations
 - Full TOML-driven physics spawning (PhysicsDef → RigidBody + Collider + auto-register)
 - PhysicsEngine raycasting (RaycastHit with entity mapping)
-- Physics debug rendering (DebugShape with Circle/Box/Capsule kinds)
+- Physics debug rendering (DebugShape with Circle/Box/Capsule/Segment)
 - Particle spawning, collider-to-entity reverse map (O(1))
 
 ### V0.4 — Scripting & Hot Reload (2026-03-23)
 
 - Script component + ScriptEngine resource with message passing
+- kavach WASM execution wired (scripting feature, wasmtime + fuel metering)
 - FileWatcher + SceneReloader with live TOML updates
+- ShaderReloader — watches .wgsl files, publishes ShaderChanged events
 - `apply_scene_diff()` for in-place scene updates
-
-### Rendering Integration (2026-03-23)
-
-- soorat GPU rendering backend integration (`rendering` feature)
-- SooratRenderer implementing kiran Renderer trait
-- DrawCommand → soorat Sprite/Color translation
-- Re-exports: Color, Sprite, SpriteBatch, SpritePipeline, Texture, TextureCache, Vertex2D/3D, GpuContext, Window, WindowConfig
-- prakash optics integration via soorat (color temperature, wavelength, PBR)
-- Full rendering pipeline: Window+Surface → SpritePipeline → Texture loading → batch_to_vertices → draw → present
-
-### Impetus 3D Integration (2026-03-23)
-
-- `physics-3d` feature flag (activates impetus 3D backend)
-- Segment and ConvexHull collider factories
-- Segment shape in TOML (`shape = "segment"` with point_a/point_b)
-- DebugShapeKind::Segment for debug rendering
-- 3D position tests (gravity on Z axis, X/Z unchanged)
-- Full 3D physics pipeline verified (register → step → sync)
 
 ### V0.5 — Editor (2026-03-23)
 
-- salai scaffolded as separate project at `/home/macro/Repos/salai/`
+- salai scaffolded as separate project
 - EditorApp with play/pause/step state machine
-- Entity inspector (Name, Position, Light, Tags, Material)
-- Scene hierarchy builder with parent-child tree + depth-first flatten
-- ViewportState with OrbitController, gizmo modes, grid/debug toggles
-- 25 tests (22 unit + 3 integration)
-
-### kavach WASM Scripting (2026-03-23)
-
-- kavach WasmBackend wired into ScriptEngine (`scripting` feature)
-- `exec_wasm()` — runs .wasm files via wasmtime with fuel metering + timeout
-- `run_scripts()` auto-detects .wasm sources → kavach execution, falls back to message state
-- `wasm_available()` health check
-
-### Shader Hot Reload (2026-03-23)
-
-- ShaderReloader — watches .wgsl files, publishes ShaderChanged events
-- watch_directory() — scan for all .wgsl in a path
-- poll_and_notify() — detect changes + publish to EventBus
-- 5 tests
-
-## Remaining
-
-### V0.5 — Editor (remaining — in salai repo)
-
-- [ ] eframe/egui event loop wiring
-- [ ] Editable inspector fields (not just display)
-- [ ] soorat 3D viewport in egui
-- [ ] Scene save to TOML from editor
-- [ ] Undo/redo stack
-- [ ] Component drag-and-drop
+- Entity inspector, hierarchy builder, viewport with gizmos
+- Expression evaluator (abaco) for inspector fields
 
 ### V0.6 — Multiplayer (2026-03-23)
 
-- majra integration (`multiplayer` feature)
+- majra integration (multiplayer feature)
 - NetState resource with Relay, node identity, peer management
-- NetRole (Server/Client), NetOwner component, Replicated marker
-- NetMessage enum (StateSnapshot, StateDelta, InputReplication, PlayerJoin/Leave)
-- `build_snapshot()` — full state capture from World
-- `build_delta()` — diff between snapshots (only changed entities)
-- `apply_snapshot()` / `apply_delta()` — apply state to World
-- InputMessage for input replication
-- 18 tests, serde roundtrips for all message types
+- State snapshots + delta compression (adaptive linear/HashMap)
+- Input replication, NetOwner/Replicated components
+- 26+ tests, serde roundtrips, 5 benchmarks
 
-### V0.6 — Multiplayer (remaining)
+### Rendering Integration (2026-03-23)
 
-### V0.7 — Advanced Rendering
+- soorat GPU rendering backend (rendering feature)
+- SooratRenderer implementing kiran Renderer trait
+- Full re-export: sprites, meshes, PBR materials, shadows, post-processing, skeletal animation, debug lines, render targets, lights
 
-- [ ] PBR materials (metallic-roughness workflow)
-- [ ] Shadow mapping (directional, point, spot)
-- [ ] Post-processing pipeline (bloom, tone mapping, SSAO)
-- [ ] Skeletal animation (glTF skinned meshes)
-- [ ] Terrain rendering (heightmap or procedural)
-- [ ] Particle visual effects (GPU particles via ranga)
-- [ ] UI system (in-game HUD, menus)
+### Impetus 3D Integration (2026-03-23)
 
-### V1.0 — Production Ready
+- physics-3d feature, segment/convex hull colliders, 3D gravity tests
 
-- [ ] API stabilization
-- [ ] Comprehensive documentation with tutorials
-- [ ] Example games (2D platformer, 3D exploration, NPC sandbox)
-- [ ] Performance profiler (frame timeline, per-system cost)
-- [ ] Asset pipeline (import, convert, cache, hot reload)
-- [ ] WebGPU export target (run in browser)
-- [ ] Publish to crates.io
+## Remaining — V1.0 Production
 
-### Post-V1
+### API Stabilization
+
+- [ ] Review all public types for consistency (naming, derives, builder patterns)
+- [ ] Add `#[non_exhaustive]` to enums that may grow
+- [ ] Ensure all public types have `Debug`, appropriate `Clone`/`PartialEq`
+- [ ] Review error types — consistent variants across modules
+
+### Documentation
+
+- [ ] Module-level doc comments with usage examples
+- [ ] Doc tests (`cargo test --doc` must pass)
+- [ ] docs/architecture/overview.md — system diagram, module relationships
+- [ ] docs/guides/getting-started.md — tutorial for new users
+
+### Example Games
+
+- [ ] `examples/sprite_demo.rs` — 2D sprite rendering with input
+- [ ] `examples/physics_demo.rs` — rigid bodies falling, collisions
+- [ ] `examples/scene_loader.rs` — load TOML scene, walk hierarchy
+- [ ] `examples/multiplayer_demo.rs` — two-node state sync
+
+### Performance Profiler
+
+- [ ] Frame timing system (per-system cost tracking in Scheduler)
+- [ ] Profile resource — stores frame timeline data
+- [ ] System to log slow frames (>16ms warning)
+
+### Asset Pipeline
+
+- [ ] Asset registry (path → typed handle)
+- [ ] Async asset loading
+- [ ] Asset hot reload (integrate with FileWatcher)
+
+## Post-V1
 
 - [ ] VR/XR support
 - [ ] Procedural world generation via hoosh LLM
@@ -161,35 +138,30 @@ Kiran does NOT own:
 
 #### Future Science Crate Integration
 
-As AGNOS science simulation crates come online, kiran gains new capabilities without engine changes — they plug in via the same impetus/hisab foundation:
-
-- Optics (ray tracing, refraction) → realistic lighting, laser puzzles
-- Fluid dynamics (SPH, Navier-Stokes) → water, smoke, fire
-- Electromagnetism (fields, charges) → physics puzzles, sci-fi mechanics
-- Thermodynamics (heat transfer) → environmental simulation
-- Quantum mechanics (state vectors) → joshua quantum simulation backend
-
-See [shared-crates.md](https://github.com/MacCracken/agnosticos/blob/main/docs/development/applications/shared-crates.md) for the full science crate roadmap.
+- Optics (prakash ray tracing) → realistic lighting, caustics
+- Fluid dynamics (SPH) → water/smoke/fire
+- Electromagnetism → physics puzzles, sci-fi mechanics
+- Thermodynamics → environmental simulation
 
 ## Dependency Map
 
 ```
 kiran (engine orchestration)
-  ├── hisab        — math (vectors, geometry, transforms, spatial structures)
+  ├── hisab        — math (vectors, geometry, transforms)
   ├── impetus      — physics (rigid bodies, collision, particles)
-  ├── soorat       — rendering (wgpu, sprites, meshes)
-  ├── prakash      — optics (ray tracing, spectral color, PBR)
+  ├── soorat       — rendering (wgpu, PBR, shadows, animation)
+  ├── prakash      — optics (spectral color, PBR math)
   ├── dhvani       — audio (spatial audio, DSP, mixing)
-  ├── ranga        — image processing (textures, GPU compute)
-  ├── majra        — multiplayer (pub/sub, relay, QUIC datagrams)
+  ├── majra        — multiplayer (pub/sub, relay)
   ├── kavach       — scripting sandbox (WASM)
-  ├── bhava        — emotion/personality (mood vectors, trait spectrums)
-  ├── libro        — replay audit trail
+  ├── bhava        — emotion/personality
+  ├── libro        — audit trail
   └── t-ron        — NPC tool call security
 ```
 
 ## Stats
 
-- **Source:** ~5,800 lines across 12 modules
-- **Tests:** 217 (all features), 40 benchmarks, 12 benchmark runs
-- **Features:** `audio` (dhvani), `physics` (impetus), `rendering` (soorat), `ai` (reqwest/tokio)
+- **Source:** ~7,900 lines across 13 modules
+- **Tests:** ~260 (all features), 45 benchmarks, 27 runs
+- **Features:** `audio`, `physics`, `physics-3d`, `rendering`, `scripting`, `multiplayer`, `ai`
+- **Ecosystem:** 8 AGNOS crates integrated

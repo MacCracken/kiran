@@ -23,6 +23,8 @@ pub mod gpu;
 #[cfg(feature = "multiplayer")]
 pub mod net;
 
+pub mod asset;
+pub mod profiler;
 pub mod reload;
 pub mod script;
 

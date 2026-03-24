@@ -5,14 +5,23 @@
 //! kiran's [`Renderer`](crate::render::Renderer) trait.
 
 pub use soorat::GpuContext;
+pub use soorat::animation::{AnimationClip, JointUniforms, Skeleton};
 pub use soorat::color::Color;
 pub use soorat::debug_draw::{LineBatch, LinePipeline, LineVertex};
+pub use soorat::lights::{GpuLight, LightArrayUniforms};
 pub use soorat::material::Material as SooratMaterial;
 pub use soorat::mesh_pipeline::{CameraUniforms, DepthBuffer, LightUniforms, Mesh, MeshPipeline};
-pub use soorat::pipeline::{FrameStats, SpritePipeline, batch_to_vertices};
+pub use soorat::pbr_material::MaterialUniforms;
+pub use soorat::pipeline::{FrameStats, SpriteBuffers, SpritePipeline, batch_to_vertices};
+pub use soorat::postprocess::{PostProcessPipeline, PostProcessUniforms, ToneMapMode};
+pub use soorat::profiler::FrameProfiler as GpuFrameProfiler;
 pub use soorat::render_target::RenderTarget;
+pub use soorat::shadow::{ShadowMap, ShadowPipeline, ShadowUniforms};
 pub use soorat::sprite::{Sprite, SpriteBatch, UvRect};
-pub use soorat::texture::{Texture, TextureCache};
+pub use soorat::terrain::{TerrainConfig, TerrainData};
+pub use soorat::text::{BitmapFont, TextBatch};
+pub use soorat::texture::{Texture, TextureCache, create_default_sampler};
+pub use soorat::ui::{UiBatch, UiLabel, UiPanel};
 pub use soorat::vertex::{Vertex2D, Vertex3D};
 pub use soorat::window::{
     self as soorat_window, Window as SooratWindow, WindowConfig as SooratWindowConfig,

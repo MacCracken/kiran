@@ -44,10 +44,10 @@ impetus = { path = "../impetus", optional = true }
 kavach = { path = "../kavach", features = ["wasm"], default-features = false, optional = true }
 
 # Multiplayer (optional)
-majra = { path = "../majra", optional = true }
+majra = { version = "0.22", optional = true }
 
 # Rendering (optional)
-soorat = { path = "../soorat", optional = true }
+soorat = { path = "../soorat", default-features = false, optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -55,3 +55,4 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [[bench]]
 name = "engine"
 harness = false
+required-features = ["rendering"]
