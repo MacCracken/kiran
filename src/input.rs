@@ -5,7 +5,7 @@
 //! position, and button state.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 // ---------------------------------------------------------------------------
 // Key codes
@@ -127,6 +127,41 @@ pub enum MouseButton {
 }
 
 // ---------------------------------------------------------------------------
+// Gamepad
+// ---------------------------------------------------------------------------
+
+/// Gamepad button identifiers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GamepadButton {
+    South, // A / Cross
+    East,  // B / Circle
+    West,  // X / Square
+    North, // Y / Triangle
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
+    LeftBumper,
+    RightBumper,
+    LeftStick,
+    RightStick,
+    Start,
+    Select,
+    Home,
+}
+
+/// Gamepad axis identifiers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum GamepadAxis {
+    LeftStickX,
+    LeftStickY,
+    RightStickX,
+    RightStickY,
+    LeftTrigger,
+    RightTrigger,
+}
+
+// ---------------------------------------------------------------------------
 // Input events
 // ---------------------------------------------------------------------------
 
@@ -139,6 +174,103 @@ pub enum InputEvent {
     MouseButtonPressed(MouseButton),
     MouseButtonReleased(MouseButton),
     MouseScroll { dx: f64, dy: f64 },
+    GamepadButtonPressed(GamepadButton),
+    GamepadButtonReleased(GamepadButton),
+    GamepadAxisMoved { axis: GamepadAxis, value: f64 },
+}
+
+// ---------------------------------------------------------------------------
+// Action mapping
+// ---------------------------------------------------------------------------
+
+/// A logical game action (e.g., "jump", "fire", "move_left").
+pub type ActionName = String;
+
+/// A physical input binding that triggers an action.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum InputBinding {
+    Key(KeyCode),
+    Mouse(MouseButton),
+    Gamepad(GamepadButton),
+    GamepadAxisPositive(GamepadAxis),
+    GamepadAxisNegative(GamepadAxis),
+}
+
+/// Maps logical actions to physical input bindings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ActionMap {
+    bindings: HashMap<ActionName, Vec<InputBinding>>,
+}
+
+impl ActionMap {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bind a physical input to a logical action.
+    pub fn bind(&mut self, action: impl Into<String>, binding: InputBinding) {
+        self.bindings
+            .entry(action.into())
+            .or_default()
+            .push(binding);
+    }
+
+    /// Check if an action is currently active (any binding pressed).
+    pub fn is_action_pressed(&self, action: &str, state: &InputState) -> bool {
+        let Some(bindings) = self.bindings.get(action) else {
+            return false;
+        };
+        bindings.iter().any(|b| match b {
+            InputBinding::Key(key) => state.is_key_pressed(*key),
+            InputBinding::Mouse(btn) => state.is_mouse_button_pressed(*btn),
+            InputBinding::Gamepad(btn) => state.is_gamepad_button_pressed(*btn),
+            InputBinding::GamepadAxisPositive(axis) => state.gamepad_axis(*axis) > 0.5,
+            InputBinding::GamepadAxisNegative(axis) => state.gamepad_axis(*axis) < -0.5,
+        })
+    }
+
+    /// Check if an action was just pressed this frame.
+    pub fn is_action_just_pressed(&self, action: &str, state: &InputState) -> bool {
+        let Some(bindings) = self.bindings.get(action) else {
+            return false;
+        };
+        bindings.iter().any(|b| match b {
+            InputBinding::Key(key) => state.is_key_just_pressed(*key),
+            InputBinding::Mouse(btn) => state.is_mouse_button_just_pressed(*btn),
+            InputBinding::Gamepad(btn) => state.is_gamepad_button_just_pressed(*btn),
+            _ => false,
+        })
+    }
+
+    /// Get the axis value for an action (0.0 if not bound or not active).
+    pub fn action_axis(&self, action: &str, state: &InputState) -> f64 {
+        let Some(bindings) = self.bindings.get(action) else {
+            return 0.0;
+        };
+        for b in bindings {
+            match b {
+                InputBinding::GamepadAxisPositive(axis)
+                | InputBinding::GamepadAxisNegative(axis) => {
+                    let v = state.gamepad_axis(*axis);
+                    if v.abs() > 0.1 {
+                        return v;
+                    }
+                }
+                InputBinding::Key(key) => {
+                    if state.is_key_pressed(*key) {
+                        return 1.0;
+                    }
+                }
+                _ => {}
+            }
+        }
+        0.0
+    }
+
+    /// Number of registered actions.
+    pub fn action_count(&self) -> usize {
+        self.bindings.len()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +297,14 @@ pub struct InputState {
     just_pressed_buttons: HashSet<MouseButton>,
     /// Mouse buttons released this frame.
     just_released_buttons: HashSet<MouseButton>,
+    /// Gamepad buttons currently held.
+    pressed_gamepad: HashSet<GamepadButton>,
+    /// Gamepad buttons pressed this frame.
+    just_pressed_gamepad: HashSet<GamepadButton>,
+    /// Gamepad buttons released this frame.
+    just_released_gamepad: HashSet<GamepadButton>,
+    /// Gamepad axis values.
+    gamepad_axes: HashMap<GamepadAxis, f64>,
 }
 
 impl InputState {
@@ -206,6 +346,18 @@ impl InputState {
                 self.scroll_dx += dx;
                 self.scroll_dy += dy;
             }
+            InputEvent::GamepadButtonPressed(btn) => {
+                if self.pressed_gamepad.insert(*btn) {
+                    self.just_pressed_gamepad.insert(*btn);
+                }
+            }
+            InputEvent::GamepadButtonReleased(btn) => {
+                self.pressed_gamepad.remove(btn);
+                self.just_released_gamepad.insert(*btn);
+            }
+            InputEvent::GamepadAxisMoved { axis, value } => {
+                self.gamepad_axes.insert(*axis, *value);
+            }
         }
     }
 
@@ -244,6 +396,26 @@ impl InputState {
         (self.mouse_x, self.mouse_y)
     }
 
+    /// Whether a gamepad button is currently held.
+    pub fn is_gamepad_button_pressed(&self, btn: GamepadButton) -> bool {
+        self.pressed_gamepad.contains(&btn)
+    }
+
+    /// Whether a gamepad button was pressed this frame.
+    pub fn is_gamepad_button_just_pressed(&self, btn: GamepadButton) -> bool {
+        self.just_pressed_gamepad.contains(&btn)
+    }
+
+    /// Whether a gamepad button was released this frame.
+    pub fn is_gamepad_button_just_released(&self, btn: GamepadButton) -> bool {
+        self.just_released_gamepad.contains(&btn)
+    }
+
+    /// Get the current value of a gamepad axis (-1.0 to 1.0, 0.0 if not active).
+    pub fn gamepad_axis(&self, axis: GamepadAxis) -> f64 {
+        self.gamepad_axes.get(&axis).copied().unwrap_or(0.0)
+    }
+
     /// Mouse movement delta this frame (for FPS camera control).
     pub fn mouse_delta(&self) -> (f64, f64) {
         (self.mouse_dx, self.mouse_dy)
@@ -260,6 +432,8 @@ impl InputState {
         self.just_released.clear();
         self.just_pressed_buttons.clear();
         self.just_released_buttons.clear();
+        self.just_pressed_gamepad.clear();
+        self.just_released_gamepad.clear();
         self.mouse_dx = 0.0;
         self.mouse_dy = 0.0;
         self.scroll_dx = 0.0;
@@ -467,5 +641,135 @@ mod tests {
         // Subsequent moves accumulate delta
         state.process_event(&InputEvent::MouseMoved { x: 30.0, y: 25.0 });
         assert_eq!(state.mouse_delta(), (20.0, 5.0));
+    }
+
+    // -- Gamepad tests --
+
+    #[test]
+    fn gamepad_button_press_release() {
+        let mut state = InputState::new();
+        state.process_event(&InputEvent::GamepadButtonPressed(GamepadButton::South));
+        assert!(state.is_gamepad_button_pressed(GamepadButton::South));
+        assert!(state.is_gamepad_button_just_pressed(GamepadButton::South));
+
+        state.process_event(&InputEvent::GamepadButtonReleased(GamepadButton::South));
+        assert!(!state.is_gamepad_button_pressed(GamepadButton::South));
+        assert!(state.is_gamepad_button_just_released(GamepadButton::South));
+    }
+
+    #[test]
+    fn gamepad_axis() {
+        let mut state = InputState::new();
+        assert_eq!(state.gamepad_axis(GamepadAxis::LeftStickX), 0.0);
+
+        state.process_event(&InputEvent::GamepadAxisMoved {
+            axis: GamepadAxis::LeftStickX,
+            value: 0.75,
+        });
+        assert_eq!(state.gamepad_axis(GamepadAxis::LeftStickX), 0.75);
+    }
+
+    #[test]
+    fn gamepad_clear_frame() {
+        let mut state = InputState::new();
+        state.process_event(&InputEvent::GamepadButtonPressed(GamepadButton::North));
+        state.clear_frame();
+        assert!(!state.is_gamepad_button_just_pressed(GamepadButton::North));
+        assert!(state.is_gamepad_button_pressed(GamepadButton::North));
+    }
+
+    // -- Action mapping tests --
+
+    #[test]
+    fn action_map_bind_and_check() {
+        let mut map = ActionMap::new();
+        map.bind("jump", InputBinding::Key(KeyCode::Space));
+        map.bind("jump", InputBinding::Gamepad(GamepadButton::South));
+        assert_eq!(map.action_count(), 1);
+
+        let mut state = InputState::new();
+        assert!(!map.is_action_pressed("jump", &state));
+
+        state.process_event(&InputEvent::KeyPressed(KeyCode::Space));
+        assert!(map.is_action_pressed("jump", &state));
+    }
+
+    #[test]
+    fn action_map_just_pressed() {
+        let mut map = ActionMap::new();
+        map.bind("fire", InputBinding::Mouse(MouseButton::Left));
+
+        let mut state = InputState::new();
+        state.process_event(&InputEvent::MouseButtonPressed(MouseButton::Left));
+        assert!(map.is_action_just_pressed("fire", &state));
+
+        state.clear_frame();
+        assert!(!map.is_action_just_pressed("fire", &state));
+    }
+
+    #[test]
+    fn action_map_gamepad_axis() {
+        let mut map = ActionMap::new();
+        map.bind(
+            "move_right",
+            InputBinding::GamepadAxisPositive(GamepadAxis::LeftStickX),
+        );
+
+        let mut state = InputState::new();
+        assert_eq!(map.action_axis("move_right", &state), 0.0);
+
+        state.process_event(&InputEvent::GamepadAxisMoved {
+            axis: GamepadAxis::LeftStickX,
+            value: 0.8,
+        });
+        assert!((map.action_axis("move_right", &state) - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn action_map_key_as_axis() {
+        let mut map = ActionMap::new();
+        map.bind("move_right", InputBinding::Key(KeyCode::D));
+
+        let mut state = InputState::new();
+        assert_eq!(map.action_axis("move_right", &state), 0.0);
+
+        state.process_event(&InputEvent::KeyPressed(KeyCode::D));
+        assert_eq!(map.action_axis("move_right", &state), 1.0);
+    }
+
+    #[test]
+    fn action_map_unknown_action() {
+        let map = ActionMap::new();
+        let state = InputState::new();
+        assert!(!map.is_action_pressed("nonexistent", &state));
+        assert_eq!(map.action_axis("nonexistent", &state), 0.0);
+    }
+
+    #[test]
+    fn action_map_serde() {
+        let mut map = ActionMap::new();
+        map.bind("jump", InputBinding::Key(KeyCode::Space));
+        let json = serde_json::to_string(&map).unwrap();
+        let decoded: ActionMap = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.action_count(), 1);
+    }
+
+    #[test]
+    fn gamepad_button_serde() {
+        let btn = GamepadButton::South;
+        let json = serde_json::to_string(&btn).unwrap();
+        let decoded: GamepadButton = serde_json::from_str(&json).unwrap();
+        assert_eq!(btn, decoded);
+    }
+
+    #[test]
+    fn gamepad_event_serde() {
+        let event = InputEvent::GamepadAxisMoved {
+            axis: GamepadAxis::RightTrigger,
+            value: 0.5,
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let decoded: InputEvent = serde_json::from_str(&json).unwrap();
+        assert_eq!(event, decoded);
     }
 }

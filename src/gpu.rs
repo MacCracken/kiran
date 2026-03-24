@@ -27,7 +27,7 @@ pub use soorat::window::{
     self as soorat_window, Window as SooratWindow, WindowConfig as SooratWindowConfig,
 };
 
-use crate::render::{Camera, DrawCommand, RenderConfig, Renderer};
+use crate::render::{Camera, DrawCommand, MeshDesc, RenderConfig, Renderer};
 
 // ---------------------------------------------------------------------------
 // SooratRenderer — bridges soorat with kiran's Renderer trait
@@ -51,6 +51,8 @@ pub struct SooratRenderer {
     frame_count: u64,
     /// Sprites queued for the current frame.
     sprite_batch: SpriteBatch,
+    /// Mesh draw commands queued for the current frame.
+    mesh_queue: Vec<MeshDesc>,
     /// Clear color for the frame.
     clear_color: Color,
     /// Current camera (updated via SetCamera commands).
@@ -65,6 +67,7 @@ impl SooratRenderer {
             in_frame: false,
             frame_count: 0,
             sprite_batch: SpriteBatch::new(),
+            mesh_queue: Vec::new(),
             clear_color: Color::CORNFLOWER_BLUE,
             camera: None,
         }
@@ -93,6 +96,16 @@ impl SooratRenderer {
     /// Access the sprite batch.
     pub fn sprite_batch(&self) -> &SpriteBatch {
         &self.sprite_batch
+    }
+
+    /// Access the mesh draw queue.
+    pub fn mesh_queue(&self) -> &[MeshDesc] {
+        &self.mesh_queue
+    }
+
+    /// Number of meshes queued this frame.
+    pub fn mesh_count(&self) -> usize {
+        self.mesh_queue.len()
     }
 
     /// Get the render config.
@@ -125,6 +138,7 @@ impl Renderer for SooratRenderer {
             return Err("SooratRenderer not initialized".into());
         }
         self.sprite_batch.clear();
+        self.mesh_queue.clear();
         self.clear_color = Color::CORNFLOWER_BLUE;
         self.in_frame = true;
         Ok(())
@@ -151,8 +165,8 @@ impl Renderer for SooratRenderer {
                     uv: UvRect::FULL,
                 });
             }
-            DrawCommand::Mesh(_desc) => {
-                tracing::debug!("mesh command received — 3D rendering not yet implemented");
+            DrawCommand::Mesh(desc) => {
+                self.mesh_queue.push(desc);
             }
             DrawCommand::SetCamera(cam) => {
                 self.camera = Some(cam);

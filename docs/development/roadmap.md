@@ -28,16 +28,15 @@ soorat GPU backend — full re-export (sprites, meshes, PBR, shadows, animation,
 ### V1.0 — Production
 FrameProfiler, AssetRegistry, examples, documentation, first-party standards compliance
 
+### P0 — Core Game Features (2026-03-24)
+- ECS Query system — `query<A>()`, `query2<A,B>()`, `query3<A,B,C>()` with alive-entity filtering
+- Transform component — position + rotation (Quat) + scale, `GlobalTransform`, `propagate_transforms()`
+- 3D mesh commands wired through SooratRenderer (mesh_queue + mesh_count)
+- Mouse delta tracking — `mouse_delta()` with first-move guard
+- Gamepad input — `GamepadButton` (15 buttons), `GamepadAxis` (6 axes), edge-triggered queries
+- Action mapping — `ActionMap` with `bind()`, `is_action_pressed()`, `is_action_just_pressed()`, `action_axis()`, key/mouse/gamepad bindings
+
 ## Priority — Next Work
-
-### P0 — Blocking for any real game
-
-- [ ] **ECS Query system** — iterate entities by component tuple (`Query<(&Position, &Velocity)>`), filter support, world iteration without manual `get_component` per entity
-- [ ] **Transform component** — replace `Position(Vec3)` with `Transform { position, rotation, scale }`, add `GlobalTransform` component, propagation system for hierarchy
-- [ ] **Wire 3D mesh through Renderer** — `SooratRenderer::submit(Mesh)` currently no-ops. Bridge soorat's MeshPipeline through the Renderer trait
-- [ ] **Mouse delta tracking** — `InputState::mouse_delta()` for FPS camera control
-- [ ] **Gamepad input** — `GamepadButton`, `GamepadAxis`, joystick deadzone, gilrs or winit integration
-- [ ] **Action mapping** — abstract layer mapping physical inputs to logical actions ("jump" → Space/A-button/Tap)
 
 ### P1 — Blocking for shipping quality
 
