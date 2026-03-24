@@ -38,20 +38,17 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 
 ## Priority — Next Work
 
-### P1 — Shipping Quality (2026-03-24, partial)
+### P1 — Shipping Quality (2026-03-24)
 - Commands buffer — deferred spawn/despawn/insert, applied between stages
-- ChangeTracker — per-component `mark_changed`/`mark_added`/`is_changed`/`is_added` with tick comparison
+- ChangeTracker — per-component mark_changed/mark_added/is_changed/is_added
 - OrthoCamera — from_screen, centered, orthographic projection matrix
-- Gizmos resource — line, draw_box, sphere, ray, point commands, per-frame accumulator
-
-### P1 — Remaining
-
-- [ ] **Client-side prediction** — rollback/resimulation for multiplayer latency compensation
-- [ ] **Entity interpolation** — smooth position updates between network ticks instead of snapping
-- [ ] **Frustum culling** — visibility testing before submitting draw calls (hisab AABB + camera frustum)
-- [ ] **Audio mix buses** — SFX/music/ambient/dialogue volume groups with independent control
-- [ ] **In-game debug overlay** — render profiler data (FPS, system timings, entity count) on screen
-- [ ] **Component-generic replication** — sync rotation, velocity, health, animation state — not just position
+- Gizmos resource — line, draw_box, sphere, ray, point commands
+- NetInterpolation — smooth lerp with retargeting, step_interpolation system
+- PredictionBuffer — ring buffer, server reconciliation check_prediction
+- AABB + frustum culling — contains_point, intersects, is_visible (view-projection)
+- MixBusVolumes — Master/Music/SFX/Ambient/Dialogue/UI with effective volume
+- Debug overlay — FrameProfiler::overlay_text() with FPS, systems, entity count
+- Component-generic replication — serialize_component/apply_replicated_component
 
 ### P2 — Polish and completeness
 

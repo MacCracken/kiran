@@ -236,6 +236,70 @@ impl Default for AudioEngine {
 }
 
 // ---------------------------------------------------------------------------
+// Mix buses
+// ---------------------------------------------------------------------------
+
+/// Audio mix bus identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MixBus {
+    Master,
+    Music,
+    SFX,
+    Ambient,
+    Dialogue,
+    UI,
+}
+
+/// Volume settings per mix bus.
+#[derive(Debug, Clone)]
+pub struct MixBusVolumes {
+    volumes: std::collections::HashMap<MixBus, f32>,
+}
+
+impl Default for MixBusVolumes {
+    fn default() -> Self {
+        let mut volumes = std::collections::HashMap::new();
+        volumes.insert(MixBus::Master, 1.0);
+        volumes.insert(MixBus::Music, 0.7);
+        volumes.insert(MixBus::SFX, 1.0);
+        volumes.insert(MixBus::Ambient, 0.5);
+        volumes.insert(MixBus::Dialogue, 1.0);
+        volumes.insert(MixBus::UI, 0.8);
+        Self { volumes }
+    }
+}
+
+impl MixBusVolumes {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the volume for a bus (0.0–1.0).
+    pub fn set(&mut self, bus: MixBus, volume: f32) {
+        self.volumes.insert(bus, volume.clamp(0.0, 1.0));
+    }
+
+    /// Get the volume for a bus.
+    pub fn get(&self, bus: MixBus) -> f32 {
+        self.volumes.get(&bus).copied().unwrap_or(1.0)
+    }
+
+    /// Get the effective volume for a bus (bus volume * master volume).
+    pub fn effective(&self, bus: MixBus) -> f32 {
+        if bus == MixBus::Master {
+            self.get(MixBus::Master)
+        } else {
+            self.get(bus) * self.get(MixBus::Master)
+        }
+    }
+
+    /// Mute a bus (set to 0).
+    pub fn mute(&mut self, bus: MixBus) {
+        self.volumes.insert(bus, 0.0);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Sound action event
 // ---------------------------------------------------------------------------
 
@@ -534,5 +598,56 @@ mod tests {
     fn spatial_gain_negative_distance() {
         // Negative distance should still clamp to max 1.0
         assert_eq!(AudioEngine::spatial_gain(-5.0, 50.0), 1.0);
+    }
+
+    // -- Mix bus tests --
+
+    #[test]
+    fn mix_bus_defaults() {
+        let buses = MixBusVolumes::new();
+        assert_eq!(buses.get(MixBus::Master), 1.0);
+        assert_eq!(buses.get(MixBus::Music), 0.7);
+        assert_eq!(buses.get(MixBus::SFX), 1.0);
+    }
+
+    #[test]
+    fn mix_bus_set_get() {
+        let mut buses = MixBusVolumes::new();
+        buses.set(MixBus::Music, 0.3);
+        assert_eq!(buses.get(MixBus::Music), 0.3);
+    }
+
+    #[test]
+    fn mix_bus_effective_volume() {
+        let mut buses = MixBusVolumes::new();
+        buses.set(MixBus::Master, 0.5);
+        buses.set(MixBus::SFX, 0.8);
+        assert!((buses.effective(MixBus::SFX) - 0.4).abs() < f32::EPSILON);
+        assert_eq!(buses.effective(MixBus::Master), 0.5);
+    }
+
+    #[test]
+    fn mix_bus_mute() {
+        let mut buses = MixBusVolumes::new();
+        buses.mute(MixBus::Music);
+        assert_eq!(buses.get(MixBus::Music), 0.0);
+        assert_eq!(buses.effective(MixBus::Music), 0.0);
+    }
+
+    #[test]
+    fn mix_bus_clamp() {
+        let mut buses = MixBusVolumes::new();
+        buses.set(MixBus::SFX, 2.0);
+        assert_eq!(buses.get(MixBus::SFX), 1.0);
+        buses.set(MixBus::SFX, -1.0);
+        assert_eq!(buses.get(MixBus::SFX), 0.0);
+    }
+
+    #[test]
+    fn mix_bus_serde() {
+        let bus = MixBus::Dialogue;
+        let json = serde_json::to_string(&bus).unwrap();
+        let decoded: MixBus = serde_json::from_str(&json).unwrap();
+        assert_eq!(bus, decoded);
     }
 }

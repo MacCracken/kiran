@@ -288,6 +288,175 @@ pub fn apply_snapshot(world: &mut World, snapshot: &StateSnapshot) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Interpolation
+// ---------------------------------------------------------------------------
+
+/// Interpolation state for smoothing network updates.
+#[derive(Debug, Clone)]
+pub struct NetInterpolation {
+    pub previous: [f32; 3],
+    pub target: [f32; 3],
+    pub alpha: f32,
+}
+
+impl Default for NetInterpolation {
+    fn default() -> Self {
+        Self {
+            previous: [0.0; 3],
+            target: [0.0; 3],
+            alpha: 1.0,
+        }
+    }
+}
+
+impl NetInterpolation {
+    /// Set a new target position (call when network state arrives).
+    pub fn set_target(&mut self, target: [f32; 3]) {
+        self.previous = self.current();
+        self.target = target;
+        self.alpha = 0.0;
+    }
+
+    /// Advance interpolation by dt (in fraction of interpolation period).
+    pub fn advance(&mut self, dt: f32) {
+        self.alpha = (self.alpha + dt).min(1.0);
+    }
+
+    /// Get the current interpolated position.
+    pub fn current(&self) -> [f32; 3] {
+        [
+            self.previous[0] + (self.target[0] - self.previous[0]) * self.alpha,
+            self.previous[1] + (self.target[1] - self.previous[1]) * self.alpha,
+            self.previous[2] + (self.target[2] - self.previous[2]) * self.alpha,
+        ]
+    }
+
+    /// Is interpolation complete (alpha >= 1.0)?
+    pub fn is_complete(&self) -> bool {
+        self.alpha >= 1.0
+    }
+}
+
+/// Apply snapshot with interpolation instead of snapping.
+pub fn apply_snapshot_interpolated(world: &mut World, snapshot: &StateSnapshot) {
+    for state in &snapshot.entities {
+        let entity = Entity::from_id(state.entity_id);
+        if let Some(interp) = world.get_component_mut::<NetInterpolation>(entity) {
+            interp.set_target(state.position);
+        }
+    }
+}
+
+/// Advance all interpolations and update positions.
+pub fn step_interpolation(world: &mut World, dt: f32) {
+    use crate::scene::Position;
+
+    let entities: Vec<Entity> = world
+        .query::<NetInterpolation>()
+        .iter()
+        .map(|(e, _)| *e)
+        .collect();
+
+    for entity in entities {
+        if let Some(interp) = world.get_component_mut::<NetInterpolation>(entity) {
+            interp.advance(dt);
+            let pos = interp.current();
+            if let Some(position) = world.get_component_mut::<Position>(entity) {
+                position.0 = hisab::Vec3::new(pos[0], pos[1], pos[2]);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Client-side prediction
+// ---------------------------------------------------------------------------
+
+/// Stores predicted state for rollback.
+#[derive(Debug, Clone)]
+pub struct PredictionBuffer {
+    /// Ring buffer of predicted positions indexed by tick.
+    history: Vec<([f32; 3], u64)>,
+    /// Maximum history size.
+    max_size: usize,
+}
+
+impl PredictionBuffer {
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            history: Vec::with_capacity(max_size),
+            max_size,
+        }
+    }
+
+    /// Record a predicted position at a tick.
+    pub fn record(&mut self, position: [f32; 3], tick: u64) {
+        if self.history.len() >= self.max_size {
+            self.history.remove(0);
+        }
+        self.history.push((position, tick));
+    }
+
+    /// Get the predicted position at a tick (for server reconciliation).
+    pub fn at_tick(&self, tick: u64) -> Option<[f32; 3]> {
+        self.history
+            .iter()
+            .find(|(_, t)| *t == tick)
+            .map(|(pos, _)| *pos)
+    }
+
+    /// Check if server state diverges from our prediction at a tick.
+    /// Returns the error magnitude if they differ.
+    pub fn check_prediction(&self, server_pos: [f32; 3], tick: u64, threshold: f32) -> Option<f32> {
+        let predicted = self.at_tick(tick)?;
+        let dx = server_pos[0] - predicted[0];
+        let dy = server_pos[1] - predicted[1];
+        let dz = server_pos[2] - predicted[2];
+        let error = (dx * dx + dy * dy + dz * dz).sqrt();
+        if error > threshold { Some(error) } else { None }
+    }
+
+    /// Discard predictions older than a tick.
+    pub fn discard_before(&mut self, tick: u64) {
+        self.history.retain(|(_, t)| *t >= tick);
+    }
+
+    pub fn len(&self) -> usize {
+        self.history.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.history.is_empty()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Component-generic replication
+// ---------------------------------------------------------------------------
+
+/// Serialize a component to JSON for network replication.
+pub fn serialize_component<T: serde::Serialize + 'static + Send + Sync>(
+    world: &World,
+    entity: Entity,
+) -> Option<String> {
+    let component = world.get_component::<T>(entity)?;
+    serde_json::to_string(component).ok()
+}
+
+/// Deserialize and apply a component from JSON.
+pub fn apply_replicated_component<T: serde::de::DeserializeOwned + 'static + Send + Sync>(
+    world: &mut World,
+    entity: Entity,
+    json: &str,
+) -> bool {
+    if let Ok(component) = serde_json::from_str::<T>(json) {
+        world.insert_component(entity, component).is_ok()
+    } else {
+        false
+    }
+}
+
 /// Apply a state delta to the world.
 pub fn apply_delta(world: &mut World, delta: &StateDelta) {
     use crate::scene::Position;
@@ -804,4 +973,122 @@ mod tests {
         let delta = build_delta(&old, &new);
         assert_eq!(delta.changes.len(), 10);
     }
+
+    // -- Interpolation tests --
+
+    #[test]
+    fn interpolation_basic() {
+        let mut interp = NetInterpolation::default();
+        interp.set_target([10.0, 0.0, 0.0]);
+
+        assert_eq!(interp.current(), [0.0, 0.0, 0.0]); // alpha=0
+        interp.advance(0.5);
+        assert_eq!(interp.current(), [5.0, 0.0, 0.0]); // halfway
+        interp.advance(0.5);
+        assert_eq!(interp.current(), [10.0, 0.0, 0.0]); // complete
+        assert!(interp.is_complete());
+    }
+
+    #[test]
+    fn interpolation_clamps() {
+        let mut interp = NetInterpolation::default();
+        interp.set_target([10.0, 0.0, 0.0]);
+        interp.advance(2.0); // overshoot
+        assert_eq!(interp.alpha, 1.0);
+        assert_eq!(interp.current(), [10.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn interpolation_retarget() {
+        let mut interp = NetInterpolation::default();
+        interp.set_target([10.0, 0.0, 0.0]);
+        interp.advance(0.5); // at [5, 0, 0]
+
+        interp.set_target([20.0, 0.0, 0.0]);
+        assert_eq!(interp.alpha, 0.0);
+        assert_eq!(interp.current(), [5.0, 0.0, 0.0]); // previous is [5,0,0]
+    }
+
+    // -- Prediction tests --
+
+    #[test]
+    fn prediction_buffer_record_and_lookup() {
+        let mut buf = PredictionBuffer::new(100);
+        buf.record([1.0, 0.0, 0.0], 1);
+        buf.record([2.0, 0.0, 0.0], 2);
+        buf.record([3.0, 0.0, 0.0], 3);
+
+        assert_eq!(buf.at_tick(2), Some([2.0, 0.0, 0.0]));
+        assert_eq!(buf.at_tick(99), None);
+        assert_eq!(buf.len(), 3);
+    }
+
+    #[test]
+    fn prediction_buffer_overflow() {
+        let mut buf = PredictionBuffer::new(3);
+        buf.record([1.0, 0.0, 0.0], 1);
+        buf.record([2.0, 0.0, 0.0], 2);
+        buf.record([3.0, 0.0, 0.0], 3);
+        buf.record([4.0, 0.0, 0.0], 4); // oldest evicted
+
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf.at_tick(1), None); // evicted
+        assert_eq!(buf.at_tick(4), Some([4.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn prediction_check_within_threshold() {
+        let mut buf = PredictionBuffer::new(10);
+        buf.record([10.0, 0.0, 0.0], 5);
+
+        // Server agrees within threshold
+        assert!(buf.check_prediction([10.01, 0.0, 0.0], 5, 0.1).is_none());
+        // Server disagrees beyond threshold
+        let error = buf.check_prediction([15.0, 0.0, 0.0], 5, 0.1);
+        assert!(error.is_some());
+        assert!(error.unwrap() > 4.0);
+    }
+
+    #[test]
+    fn prediction_discard_old() {
+        let mut buf = PredictionBuffer::new(10);
+        buf.record([1.0, 0.0, 0.0], 1);
+        buf.record([2.0, 0.0, 0.0], 2);
+        buf.record([3.0, 0.0, 0.0], 3);
+        buf.discard_before(2);
+        assert_eq!(buf.len(), 2);
+        assert_eq!(buf.at_tick(1), None);
+    }
+
+    // -- Replication tests --
+
+    #[test]
+    fn serialize_replicate_component() {
+        let mut world = World::new();
+        let e = world.spawn();
+        world
+            .insert_component(e, Position(hisab::Vec3::new(1.0, 2.0, 3.0)))
+            .unwrap();
+
+        // Position doesn't implement Serialize — use NetOwner which does
+        world
+            .insert_component(e, NetOwner("player-1".into()))
+            .unwrap();
+
+        let json = serialize_component::<NetOwner>(&world, e).unwrap();
+        assert!(json.contains("player-1"));
+
+        // Apply to another world
+        let mut world2 = World::new();
+        let e2 = world2.spawn();
+        assert!(apply_replicated_component::<NetOwner>(
+            &mut world2,
+            e2,
+            &json
+        ));
+        assert_eq!(world2.get_component::<NetOwner>(e2).unwrap().0, "player-1");
+    }
+
+    // -- Mix bus (from audio.rs) --
+    // Audio mix bus tests are in audio.rs
 }

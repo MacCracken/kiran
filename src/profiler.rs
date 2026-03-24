@@ -165,6 +165,39 @@ impl FrameProfiler {
             self.slow_frame_count as f64 / self.total_frames as f64 * 100.0
         }
     }
+
+    /// Generate a multi-line debug overlay string for on-screen display.
+    pub fn overlay_text(&self, entity_count: usize) -> String {
+        let fps = self.average_fps();
+        let frame_ms = self.average_frame_time().as_secs_f64() * 1000.0;
+        let worst_ms = self.worst_frame_time().as_secs_f64() * 1000.0;
+
+        let mut text = format!(
+            "FPS: {:.0} | Frame: {:.2}ms | Worst: {:.2}ms | Entities: {}",
+            fps, frame_ms, worst_ms, entity_count
+        );
+
+        if !self.current_frame.is_empty() {
+            text.push_str("\nSystems:");
+            for timing in &self.current_frame {
+                text.push_str(&format!(
+                    "\n  {} {:.3}ms",
+                    timing.name,
+                    timing.duration.as_secs_f64() * 1000.0
+                ));
+            }
+        }
+
+        if self.slow_frame_count > 0 {
+            text.push_str(&format!(
+                "\nSlow: {} ({:.1}%)",
+                self.slow_frame_count,
+                self.slow_frame_percentage()
+            ));
+        }
+
+        text
+    }
 }
 
 impl Default for FrameProfiler {
@@ -302,5 +335,28 @@ mod tests {
 
         let profiler = world.get_resource::<FrameProfiler>().unwrap();
         assert_eq!(profiler.total_frames, 0);
+    }
+
+    #[test]
+    fn overlay_text_basic() {
+        let mut p = FrameProfiler::default();
+        p.begin_frame();
+        p.record_system("physics", Duration::from_micros(500));
+        p.record_system("render", Duration::from_millis(2));
+        p.end_frame();
+
+        let text = p.overlay_text(42);
+        assert!(text.contains("FPS:"));
+        assert!(text.contains("Entities: 42"));
+        assert!(text.contains("physics"));
+        assert!(text.contains("render"));
+    }
+
+    #[test]
+    fn overlay_text_empty() {
+        let p = FrameProfiler::default();
+        let text = p.overlay_text(0);
+        assert!(text.contains("FPS: 0"));
+        assert!(text.contains("Entities: 0"));
     }
 }

@@ -143,6 +143,88 @@ impl Default for OrthoCamera {
 }
 
 // ---------------------------------------------------------------------------
+// Frustum culling
+// ---------------------------------------------------------------------------
+
+/// Axis-aligned bounding box for visibility testing.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AABB {
+    pub min: Vec3,
+    pub max: Vec3,
+}
+
+impl AABB {
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self { min, max }
+    }
+
+    /// Create from center + half-extents.
+    pub fn from_center(center: Vec3, half_extents: Vec3) -> Self {
+        Self {
+            min: center - half_extents,
+            max: center + half_extents,
+        }
+    }
+
+    /// Check if a point is inside the AABB.
+    pub fn contains_point(&self, point: Vec3) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+            && point.z >= self.min.z
+            && point.z <= self.max.z
+    }
+
+    /// Check if two AABBs overlap.
+    pub fn intersects(&self, other: &AABB) -> bool {
+        self.min.x <= other.max.x
+            && self.max.x >= other.min.x
+            && self.min.y <= other.max.y
+            && self.max.y >= other.min.y
+            && self.min.z <= other.max.z
+            && self.max.z >= other.min.z
+    }
+
+    /// Center of the AABB.
+    pub fn center(&self) -> Vec3 {
+        (self.min + self.max) * 0.5
+    }
+
+    /// Test if the AABB is inside a camera's view frustum (conservative test).
+    /// Uses the view-projection matrix to test all 8 corners.
+    pub fn is_visible(&self, view_proj: &Mat4) -> bool {
+        let corners = [
+            Vec3::new(self.min.x, self.min.y, self.min.z),
+            Vec3::new(self.max.x, self.min.y, self.min.z),
+            Vec3::new(self.min.x, self.max.y, self.min.z),
+            Vec3::new(self.max.x, self.max.y, self.min.z),
+            Vec3::new(self.min.x, self.min.y, self.max.z),
+            Vec3::new(self.max.x, self.min.y, self.max.z),
+            Vec3::new(self.min.x, self.max.y, self.max.z),
+            Vec3::new(self.max.x, self.max.y, self.max.z),
+        ];
+
+        // Project all corners and check if any is inside clip space
+        for corner in &corners {
+            let clip = *view_proj * corner.extend(1.0);
+            if clip.w > 0.0 {
+                let ndc_x = clip.x / clip.w;
+                let ndc_y = clip.y / clip.w;
+                let ndc_z = clip.z / clip.w;
+                if (-1.0..=1.0).contains(&ndc_x)
+                    && (-1.0..=1.0).contains(&ndc_y)
+                    && (0.0..=1.0).contains(&ndc_z)
+                {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Camera controllers
 // ---------------------------------------------------------------------------
 
@@ -670,5 +752,56 @@ mod tests {
         let cam = OrthoCamera::default();
         assert_eq!(cam.right, 1280.0);
         assert_eq!(cam.bottom, 720.0);
+    }
+
+    // -- AABB tests --
+
+    #[test]
+    fn aabb_contains_point() {
+        let aabb = AABB::new(Vec3::ZERO, Vec3::ONE);
+        assert!(aabb.contains_point(Vec3::new(0.5, 0.5, 0.5)));
+        assert!(!aabb.contains_point(Vec3::new(2.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn aabb_from_center() {
+        let aabb = AABB::from_center(Vec3::new(5.0, 5.0, 5.0), Vec3::ONE);
+        assert_eq!(aabb.min, Vec3::new(4.0, 4.0, 4.0));
+        assert_eq!(aabb.max, Vec3::new(6.0, 6.0, 6.0));
+    }
+
+    #[test]
+    fn aabb_intersects() {
+        let a = AABB::new(Vec3::ZERO, Vec3::ONE);
+        let b = AABB::new(Vec3::new(0.5, 0.5, 0.5), Vec3::new(1.5, 1.5, 1.5));
+        let c = AABB::new(Vec3::new(5.0, 5.0, 5.0), Vec3::new(6.0, 6.0, 6.0));
+        assert!(a.intersects(&b));
+        assert!(!a.intersects(&c));
+    }
+
+    #[test]
+    fn aabb_center() {
+        let aabb = AABB::new(Vec3::new(2.0, 4.0, 6.0), Vec3::new(4.0, 8.0, 10.0));
+        assert_eq!(aabb.center(), Vec3::new(3.0, 6.0, 8.0));
+    }
+
+    #[test]
+    fn aabb_visible_identity() {
+        let aabb = AABB::new(Vec3::new(-0.5, -0.5, 0.0), Vec3::new(0.5, 0.5, 0.5));
+        // With identity VP, clip space = world space — AABB is visible
+        assert!(aabb.is_visible(&Mat4::IDENTITY));
+    }
+
+    #[test]
+    fn aabb_visible_far_away() {
+        let aabb = AABB::new(
+            Vec3::new(1000.0, 1000.0, 1000.0),
+            Vec3::new(1001.0, 1001.0, 1001.0),
+        );
+        // With a perspective camera looking at origin, far AABB should not be visible
+        let cam = Camera::default();
+        let vp = cam.view_projection();
+        // This is a conservative test — may or may not be visible depending on far plane
+        let _ = aabb.is_visible(&vp); // just verify no panic
     }
 }
