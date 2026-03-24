@@ -183,13 +183,15 @@ impl ShaderReloader {
     }
 
     /// Watch all `.wgsl` files in a directory (non-recursive).
+    /// Skips files that can't be accessed; returns count of successfully watched files.
     pub fn watch_directory(&mut self, dir: impl AsRef<Path>) -> std::io::Result<usize> {
         let mut count = 0;
         for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
+            let Ok(entry) = entry else { continue };
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "wgsl") {
-                self.watcher.watch(&path)?;
+            if path.extension().is_some_and(|ext| ext == "wgsl")
+                && self.watcher.watch(&path).is_ok()
+            {
                 count += 1;
             }
         }
@@ -637,5 +639,30 @@ name = "Gone2"
             path: PathBuf::from("shaders/sprite.wgsl"),
         };
         assert!(event.path.to_str().unwrap().contains("sprite.wgsl"));
+    }
+
+    #[test]
+    fn shader_reloader_as_world_resource() {
+        let mut world = World::new();
+        world.insert_resource(ShaderReloader::new());
+
+        let reloader = world.get_resource::<ShaderReloader>().unwrap();
+        assert_eq!(reloader.watch_count(), 0);
+    }
+
+    #[test]
+    fn shader_reloader_watch_directory_empty() {
+        let mut reloader = ShaderReloader::new();
+        // src/ has no .wgsl files
+        let count = reloader
+            .watch_directory(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn shader_reloader_default() {
+        let reloader = ShaderReloader::default();
+        assert_eq!(reloader.watch_count(), 0);
     }
 }

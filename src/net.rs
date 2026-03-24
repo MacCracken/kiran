@@ -245,7 +245,6 @@ pub fn build_delta(old: &StateSnapshot, new: &StateSnapshot) -> StateDelta {
     let mut changes = Vec::new();
 
     if old.entities.len() < 256 {
-        // Linear scan — better cache locality for small entity counts
         for new_state in &new.entities {
             let changed = old
                 .entities
@@ -257,7 +256,6 @@ pub fn build_delta(old: &StateSnapshot, new: &StateSnapshot) -> StateDelta {
             }
         }
     } else {
-        // HashMap for large entity counts — O(n+m) vs O(n*m)
         use std::collections::HashMap;
         let old_map: HashMap<u64, &EntityState> =
             old.entities.iter().map(|e| (e.entity_id, e)).collect();
@@ -730,5 +728,80 @@ mod tests {
         // broadcast returns sequence number
         let seq = state.broadcast_via_relay("game.state", serde_json::json!({"tick": 1}));
         assert!(seq > 0);
+    }
+
+    #[test]
+    fn full_snapshot_delta_apply_cycle() {
+        let mut world = World::new();
+        let e1 = world.spawn();
+        let e2 = world.spawn();
+        world
+            .insert_component(e1, Position(hisab::Vec3::new(0.0, 0.0, 0.0)))
+            .unwrap();
+        world
+            .insert_component(e2, Position(hisab::Vec3::new(10.0, 0.0, 0.0)))
+            .unwrap();
+
+        // Tick 1: snapshot
+        let snap1 = build_snapshot(&world, 1, &[e1, e2]);
+
+        // Simulate movement
+        world.get_component_mut::<Position>(e1).unwrap().0.x = 5.0;
+
+        // Tick 2: snapshot + delta
+        let snap2 = build_snapshot(&world, 2, &[e1, e2]);
+        let delta = build_delta(&snap1, &snap2);
+
+        assert_eq!(delta.changes.len(), 1);
+        assert_eq!(delta.changes[0].entity_id, e1.id());
+
+        // Apply delta to a fresh world with same entities
+        let mut world2 = World::new();
+        let e1b = world2.spawn();
+        let e2b = world2.spawn();
+        world2
+            .insert_component(e1b, Position(hisab::Vec3::ZERO))
+            .unwrap();
+        world2
+            .insert_component(e2b, Position(hisab::Vec3::new(10.0, 0.0, 0.0)))
+            .unwrap();
+
+        apply_delta(&mut world2, &delta);
+
+        assert_eq!(world2.get_component::<Position>(e1b).unwrap().0.x, 5.0);
+        assert_eq!(world2.get_component::<Position>(e2b).unwrap().0.x, 10.0);
+    }
+
+    #[test]
+    fn build_delta_large_hashmap_path() {
+        // >256 entities triggers HashMap path
+        let old = StateSnapshot {
+            tick: 1,
+            entities: (0..300)
+                .map(|i| EntityState {
+                    entity_id: i,
+                    position: [i as f32, 0.0, 0.0],
+                    owner: None,
+                })
+                .collect(),
+        };
+        let mut new_entities: Vec<EntityState> = (0..300)
+            .map(|i| EntityState {
+                entity_id: i,
+                position: [i as f32, 0.0, 0.0],
+                owner: None,
+            })
+            .collect();
+        // Change 10 entities
+        for i in 0..10 {
+            new_entities[i * 30].position[0] += 100.0;
+        }
+        let new = StateSnapshot {
+            tick: 2,
+            entities: new_entities,
+        };
+
+        let delta = build_delta(&old, &new);
+        assert_eq!(delta.changes.len(), 10);
     }
 }
