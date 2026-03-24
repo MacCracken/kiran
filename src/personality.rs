@@ -37,9 +37,9 @@ impl Personality {
         self.mood.dominant_emotion()
     }
 
-    /// Apply a mood stimulus (nudge an emotion).
+    /// Apply a mood stimulus (nudge an emotion). Intensity is clamped to [-1.0, 1.0].
     pub fn stimulate(&mut self, emotion: bhava::mood::Emotion, intensity: f32) {
-        self.mood.nudge(emotion, intensity);
+        self.mood.nudge(emotion, intensity.clamp(-1.0, 1.0));
     }
 
     /// Decay mood toward neutral over time.
@@ -303,6 +303,13 @@ mod tests {
         assert_eq!(p.profile.get_trait(TraitKind::Warmth), TraitLevel::Highest);
         assert_eq!(p.profile.get_trait(TraitKind::Humor), TraitLevel::High);
         assert_eq!(p.profile.get_trait(TraitKind::Patience), TraitLevel::Low);
+    }
+
+    #[test]
+    fn stimulate_clamps_intensity() {
+        let mut p = Personality::new("Clamped");
+        p.stimulate(Emotion::Joy, 5.0); // over 1.0 → clamped to 1.0
+        assert!(p.mood.get(Emotion::Joy) <= 1.0);
     }
 
     #[test]

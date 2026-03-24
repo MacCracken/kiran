@@ -67,3 +67,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 name = "engine"
 harness = false
 required-features = ["rendering"]
+
+[[bench]]
+name = "personality"
+harness = false
+required-features = ["personality"]
