@@ -28,7 +28,7 @@ soorat GPU backend — full re-export (sprites, meshes, PBR, shadows, animation,
 ### V1.0 — Production
 FrameProfiler, AssetRegistry, examples, documentation, first-party standards compliance
 
-### P0 — Core Game Features (2026-03-24)
+### P0 — Core Game Features
 - ECS Query system — `query<A>()`, `query2<A,B>()`, `query3<A,B,C>()` with alive-entity filtering
 - Transform component — position + rotation (Quat) + scale, `GlobalTransform`, `propagate_transforms()`
 - 3D mesh commands wired through SooratRenderer (mesh_queue + mesh_count)
@@ -36,9 +36,7 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 - Gamepad input — `GamepadButton` (15 buttons), `GamepadAxis` (6 axes), edge-triggered queries
 - Action mapping — `ActionMap` with `bind()`, `is_action_pressed()`, `is_action_just_pressed()`, `action_axis()`, key/mouse/gamepad bindings
 
-## Priority — Next Work
-
-### P1 — Shipping Quality (2026-03-24)
+### P1 — Shipping Quality
 - Commands buffer — deferred spawn/despawn/insert, applied between stages
 - ChangeTracker — per-component mark_changed/mark_added/is_changed/is_added
 - OrthoCamera — from_screen, centered, orthographic projection matrix
@@ -50,31 +48,36 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 - Debug overlay — FrameProfiler::overlay_text() with FPS, systems, entity count
 - Component-generic replication — serialize_component/apply_replicated_component
 
-### P2 — Polish and completeness
+### P2 — Completed Items
+- Component bundles — `Bundle` with `with()` for atomic multi-component insertion
+- Scene save — `save_scene(world) -> String` serializes world to TOML
+- Scene instancing at runtime — `instance_scene()` spawns prefab mid-game with parent
+- Game state machine — `StateMachine` with `GameState` trait, enter/exit hooks
+- Pitch control — `SoundSource.pitch` playback speed
+- Sound pooling — `SoundPool` with max concurrent sounds per type
+- Audio fade in/out — `fade_in()`, `fade_out()`, `step_fade()` transition helpers
+- Touch input — `TouchPhase` (Started/Moved/Ended/Cancelled) with ID + position
+- Input contexts — `set_context()` for switching input maps
+- Cursor locking — `CursorLock(bool)` event with `is_cursor_locked()` query
+- Text input events — `TextInput(char)` with `text_input()` accumulator
+- Reliable vs unreliable channels — `ReliableChannel`, `Reliability` enum, ack + retransmit
+- Interest management — `InterestArea` spatial filtering for multiplayer
+- Clock synchronization — `ClockSync` NTP-style offset estimation
+- bhava personality integration — `Personality` component, `MoodStimulus`, mood decay, `compose_prompt()`
+
+## Priority — Next Work
+
+### P2 — Remaining
 
 - [ ] **Parallel system execution** — concurrent systems within a stage when read/write sets don't overlap
-- [ ] **System ordering constraints** — `before`/`after` dependencies between systems within a stage
-- [ ] **Component bundles** — insert multiple components atomically (reduce boilerplate)
-- [ ] **Scene save** — `save_scene(world) -> String` to serialize world back to TOML
-- [ ] **Scene instancing at runtime** — spawn prefab mid-game with a parent entity
-- [ ] **Game state machine** — menu → playing → paused transitions with enter/exit hooks
+- [ ] **System ordering constraints** — enforce `before`/`after` dependencies in scheduler (trait API exists, scheduler not yet using it)
 - [ ] **Animation state machine** — blend trees, state transitions, not just raw clips
-- [ ] **Navigation / pathfinding** — navmesh generation + A* pathfinding
-- [ ] **Pitch control** — `SoundSource` playback speed
-- [ ] **Sound pooling** — max concurrent sounds per type
-- [ ] **Audio fade in/out** — transition helpers for music
-- [ ] **Touch input** — `TouchEvent` with ID, position, phase for mobile
-- [ ] **Input contexts** — switch input maps between gameplay, UI, menu
-- [ ] **Cursor locking** — hide/confine cursor for FPS games
-- [ ] **Text input events** — character composition for UI text fields
+- [ ] **Navigation / pathfinding** — integrate `raasta` crate (grid A*, navmesh, flow fields, steering)
 - [ ] **Async asset loading** — background loading with completion callbacks
 - [ ] **Asset preprocessing** — compress textures, optimize meshes at build time
-- [ ] **Instanced rendering** — draw thousands of identical meshes efficiently
+- [ ] **Instanced rendering** — draw thousands of identical meshes efficiently (soorat has InstanceBuffer)
 - [ ] **GPU particle rendering** — render impetus particles on GPU
 - [ ] **Multi-pass rendering** — render graph or multi-pass abstraction for deferred shading
-- [ ] **Reliable vs unreliable channels** — state updates lossy, RPCs reliable
-- [ ] **Interest management** — spatial filtering for multiplayer
-- [ ] **Clock synchronization** — NTP-style time sync between server and clients
 
 ### P3 — Future
 
@@ -85,7 +88,6 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 - [ ] VR/XR support
 - [ ] Procedural world generation via hoosh LLM
 - [ ] joshua integration (NPC AI, headless simulation)
-- [ ] bhava integration (NPC emotions, personality)
 - [ ] Science crate integration (optics, fluids, electromagnetism, thermodynamics)
 
 ## Dependency Map
@@ -100,6 +102,7 @@ kiran (engine orchestration)
   ├── majra        — multiplayer (pub/sub, relay)
   ├── kavach       — scripting sandbox (WASM)
   ├── bhava        — emotion/personality
+  ├── raasta       — navigation/pathfinding
   ├── libro        — audit trail
   └── t-ron        — NPC tool call security
 ```
@@ -107,7 +110,7 @@ kiran (engine orchestration)
 ## Stats
 
 - **Source:** ~8,500 lines across 15 modules
-- **Tests:** ~240 (all features), 45 benchmarks, 28 runs
-- **Features:** `audio`, `physics`, `physics-3d`, `rendering`, `scripting`, `multiplayer`, `ai`
-- **Ecosystem:** 8 AGNOS crates integrated
+- **Tests:** 300+ (all features), 45 benchmarks
+- **Features:** `audio`, `physics`, `physics-3d`, `rendering`, `scripting`, `multiplayer`, `ai`, `personality`
+- **Ecosystem:** 9 AGNOS crates integrated
 - **Examples:** scene_loader, game_loop
