@@ -6,9 +6,13 @@
 
 pub use soorat::GpuContext;
 pub use soorat::color::Color;
+pub use soorat::pipeline::{SpritePipeline, batch_to_vertices};
 pub use soorat::sprite::{Sprite, SpriteBatch};
+pub use soorat::texture::{Texture, TextureCache};
 pub use soorat::vertex::{Vertex2D, Vertex3D};
-pub use soorat::window::WindowConfig as SooratWindowConfig;
+pub use soorat::window::{
+    self as soorat_window, Window as SooratWindow, WindowConfig as SooratWindowConfig,
+};
 
 use crate::render::{Camera, DrawCommand, RenderConfig, Renderer};
 

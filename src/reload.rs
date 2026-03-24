@@ -102,8 +102,9 @@ impl SceneReloader {
 
         self.scene_entities.insert(path.clone(), entities.clone());
 
-        // Ignore watch errors (e.g. file deleted between read and watch)
-        let _ = self.watcher.watch(&path);
+        if let Err(e) = self.watcher.watch(&path) {
+            tracing::warn!(path = %path.display(), error = %e, "failed to watch scene file");
+        }
 
         Ok(entities)
     }

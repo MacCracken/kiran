@@ -194,7 +194,11 @@ impl Material {
 // ---------------------------------------------------------------------------
 
 /// Set `child`'s parent to `parent`, updating both Parent and Children components.
+/// Returns an error if child == parent (self-parenting).
 pub fn set_parent(world: &mut World, child: Entity, parent: Entity) -> Result<(), KiranError> {
+    if child == parent {
+        return Err(KiranError::Scene("cannot parent entity to itself".into()));
+    }
     // Remove from old parent's children list
     if let Some(old_parent) = world.get_component::<Parent>(child).map(|p| p.0)
         && let Some(children) = world.get_component_mut::<Children>(old_parent)
@@ -1167,5 +1171,43 @@ radius = 1.0
         assert_eq!(pos.position[0], 5.0);
         assert_eq!(pos.position[1], 20.0);
         assert_eq!(pos.position[2], -10.0);
+    }
+
+    // -- Edge case tests --
+
+    #[test]
+    fn set_parent_self_parenting_rejected() {
+        let mut world = World::new();
+        let e = world.spawn();
+        let result = set_parent(&mut world, e, e);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn set_parent_already_same_parent() {
+        let mut world = World::new();
+        let parent = world.spawn();
+        let child = world.spawn();
+        set_parent(&mut world, child, parent).unwrap();
+        // Setting same parent again should not duplicate
+        set_parent(&mut world, child, parent).unwrap();
+        let children = world.get_component::<Children>(parent).unwrap();
+        assert_eq!(children.0.len(), 1);
+    }
+
+    #[test]
+    fn spawn_scene_1000_entities() {
+        let mut toml = String::from("name = \"Stress\"\n");
+        for i in 0..1000 {
+            toml.push_str(&format!(
+                "[[entities]]\nname = \"E{i}\"\nposition = [{}.0, 0.0, 0.0]\n",
+                i % 100
+            ));
+        }
+        let scene = load_scene(&toml).unwrap();
+        let mut world = World::new();
+        let entities = spawn_scene(&mut world, &scene).unwrap();
+        assert_eq!(entities.len(), 1000);
+        assert_eq!(world.entity_count(), 1000);
     }
 }

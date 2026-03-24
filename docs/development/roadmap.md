@@ -71,8 +71,9 @@ Kiran does NOT own:
 - soorat GPU rendering backend integration (`rendering` feature)
 - SooratRenderer implementing kiran Renderer trait
 - DrawCommand → soorat Sprite/Color translation
-- soorat re-exports (Color, Sprite, SpriteBatch, Vertex2D/3D, GpuContext, WindowConfig)
+- Re-exports: Color, Sprite, SpriteBatch, SpritePipeline, Texture, TextureCache, Vertex2D/3D, GpuContext, Window, WindowConfig
 - prakash optics integration via soorat (color temperature, wavelength, PBR)
+- Full rendering pipeline: Window+Surface → SpritePipeline → Texture loading → batch_to_vertices → draw → present
 
 ### Impetus 3D Integration (2026-03-23)
 
