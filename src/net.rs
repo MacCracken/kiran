@@ -60,14 +60,14 @@ pub enum NetMessage {
 }
 
 /// Full state snapshot of all replicated entities.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateSnapshot {
     pub tick: u64,
     pub entities: Vec<EntityState>,
 }
 
 /// State of a single entity for network sync.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntityState {
     pub entity_id: u64,
     pub position: [f32; 3],
@@ -75,7 +75,7 @@ pub struct EntityState {
 }
 
 /// Delta update — only changed entities since last snapshot.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateDelta {
     pub base_tick: u64,
     pub tick: u64,
@@ -240,18 +240,34 @@ pub fn build_snapshot(world: &World, tick: u64, entities: &[Entity]) -> StateSna
 }
 
 /// Build a delta from two snapshots (only changed entities).
+/// Uses linear scan for small snapshots (<256 entities) and HashMap for larger ones.
 pub fn build_delta(old: &StateSnapshot, new: &StateSnapshot) -> StateDelta {
     let mut changes = Vec::new();
 
-    for new_state in &new.entities {
-        let changed = old
-            .entities
-            .iter()
-            .find(|o| o.entity_id == new_state.entity_id)
-            .is_none_or(|old_state| old_state.position != new_state.position);
-
-        if changed {
-            changes.push(new_state.clone());
+    if old.entities.len() < 256 {
+        // Linear scan — better cache locality for small entity counts
+        for new_state in &new.entities {
+            let changed = old
+                .entities
+                .iter()
+                .find(|o| o.entity_id == new_state.entity_id)
+                .is_none_or(|old_state| old_state.position != new_state.position);
+            if changed {
+                changes.push(new_state.clone());
+            }
+        }
+    } else {
+        // HashMap for large entity counts — O(n+m) vs O(n*m)
+        use std::collections::HashMap;
+        let old_map: HashMap<u64, &EntityState> =
+            old.entities.iter().map(|e| (e.entity_id, e)).collect();
+        for new_state in &new.entities {
+            let changed = old_map
+                .get(&new_state.entity_id)
+                .is_none_or(|old_state| old_state.position != new_state.position);
+            if changed {
+                changes.push(new_state.clone());
+            }
         }
     }
 
@@ -577,5 +593,142 @@ mod tests {
         };
         let delta = build_delta(&snap, &snap);
         assert!(delta.changes.is_empty());
+    }
+
+    #[test]
+    fn delta_with_removed_entity() {
+        let old = StateSnapshot {
+            tick: 1,
+            entities: vec![
+                EntityState {
+                    entity_id: 0,
+                    position: [0.0, 0.0, 0.0],
+                    owner: None,
+                },
+                EntityState {
+                    entity_id: 1,
+                    position: [1.0, 0.0, 0.0],
+                    owner: None,
+                },
+            ],
+        };
+        let new = StateSnapshot {
+            tick: 2,
+            entities: vec![
+                EntityState {
+                    entity_id: 0,
+                    position: [0.0, 0.0, 0.0],
+                    owner: None,
+                },
+                // entity 1 removed
+            ],
+        };
+        let delta = build_delta(&old, &new);
+        // No changes — delta only tracks entities present in NEW
+        assert!(delta.changes.is_empty());
+    }
+
+    #[test]
+    fn apply_snapshot_missing_entity_no_panic() {
+        let mut world = World::new();
+        // Snapshot references entity not in world
+        let snapshot = StateSnapshot {
+            tick: 1,
+            entities: vec![EntityState {
+                entity_id: 99999,
+                position: [1.0, 2.0, 3.0],
+                owner: None,
+            }],
+        };
+        apply_snapshot(&mut world, &snapshot); // should not panic
+    }
+
+    #[test]
+    fn large_snapshot_1000() {
+        let mut world = World::new();
+        let mut entities = Vec::new();
+        for i in 0..1000 {
+            let e = world.spawn();
+            world
+                .insert_component(e, Position(hisab::Vec3::new(i as f32, 0.0, 0.0)))
+                .unwrap();
+            entities.push(e);
+        }
+
+        let snapshot = build_snapshot(&world, 42, &entities);
+        assert_eq!(snapshot.entities.len(), 1000);
+        assert_eq!(snapshot.tick, 42);
+    }
+
+    #[test]
+    fn net_state_as_world_resource() {
+        let mut world = World::new();
+        world.insert_resource(NetState::server("game-server"));
+
+        let state = world.get_resource::<NetState>().unwrap();
+        assert_eq!(state.node_id, "game-server");
+        assert!(state.is_server());
+
+        let state = world.get_resource_mut::<NetState>().unwrap();
+        state.add_peer("player-1");
+        assert_eq!(state.peer_count(), 1);
+    }
+
+    #[test]
+    fn entity_state_partial_eq() {
+        let a = EntityState {
+            entity_id: 1,
+            position: [1.0, 2.0, 3.0],
+            owner: None,
+        };
+        let b = EntityState {
+            entity_id: 1,
+            position: [1.0, 2.0, 3.0],
+            owner: None,
+        };
+        let c = EntityState {
+            entity_id: 1,
+            position: [4.0, 5.0, 6.0],
+            owner: None,
+        };
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn input_message_serde() {
+        let msg = InputMessage {
+            node_id: "p1".into(),
+            tick: 42,
+            payload: r#"{"w":true}"#.into(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let decoded: InputMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.node_id, "p1");
+        assert_eq!(decoded.tick, 42);
+    }
+
+    #[test]
+    fn delta_serde_roundtrip() {
+        let delta = StateDelta {
+            base_tick: 1,
+            tick: 2,
+            changes: vec![EntityState {
+                entity_id: 5,
+                position: [10.0, 20.0, 30.0],
+                owner: Some("server".into()),
+            }],
+        };
+        let json = serde_json::to_string(&delta).unwrap();
+        let decoded: StateDelta = serde_json::from_str(&json).unwrap();
+        assert_eq!(delta, decoded);
+    }
+
+    #[test]
+    fn broadcast_via_relay() {
+        let state = NetState::server("test");
+        // broadcast returns sequence number
+        let seq = state.broadcast_via_relay("game.state", serde_json::json!({"tick": 1}));
+        assert!(seq > 0);
     }
 }
