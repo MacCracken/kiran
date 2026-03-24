@@ -26,9 +26,14 @@ pub mod gpu;
 #[cfg(feature = "multiplayer")]
 pub mod net;
 
+#[cfg(feature = "fluids")]
+pub mod fluids;
+
 pub mod animation;
+pub mod archetype;
 pub mod asset;
 pub mod gizmos;
+pub mod job;
 pub mod pool;
 pub mod profiler;
 pub mod reload;

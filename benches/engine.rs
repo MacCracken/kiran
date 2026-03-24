@@ -1113,6 +1113,133 @@ fn bench_pool(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------------------------------------------------------------------------
+// Archetype storage
+// ---------------------------------------------------------------------------
+
+fn bench_archetype(c: &mut Criterion) {
+    use kiran::Entity;
+    use kiran::archetype::ArchetypeStore;
+    use std::any::TypeId;
+
+    #[allow(dead_code)]
+    struct Pos(f32, f32);
+    #[allow(dead_code)]
+    struct Vel(f32, f32);
+
+    let mut group = c.benchmark_group("archetype");
+
+    group.bench_function("insert_1000", |b| {
+        b.iter(|| {
+            let mut store = ArchetypeStore::new();
+            for i in 0..1000u32 {
+                store.insert(
+                    Entity::new(i, 0),
+                    vec![
+                        (TypeId::of::<Pos>(), Box::new(Pos(i as f32, 0.0))),
+                        (TypeId::of::<Vel>(), Box::new(Vel(1.0, 1.0))),
+                    ],
+                );
+            }
+            black_box(&store);
+        })
+    });
+
+    group.bench_function("query_1000", |b| {
+        let mut store = ArchetypeStore::new();
+        for i in 0..1000u32 {
+            store.insert(
+                Entity::new(i, 0),
+                vec![
+                    (TypeId::of::<Pos>(), Box::new(Pos(i as f32, 0.0))),
+                    (TypeId::of::<Vel>(), Box::new(Vel(1.0, 1.0))),
+                ],
+            );
+        }
+        b.iter(|| {
+            black_box(store.query::<Pos>());
+        })
+    });
+
+    group.bench_function("query2_1000", |b| {
+        let mut store = ArchetypeStore::new();
+        for i in 0..1000u32 {
+            store.insert(
+                Entity::new(i, 0),
+                vec![
+                    (TypeId::of::<Pos>(), Box::new(Pos(i as f32, 0.0))),
+                    (TypeId::of::<Vel>(), Box::new(Vel(1.0, 1.0))),
+                ],
+            );
+        }
+        b.iter(|| {
+            black_box(store.query2::<Pos, Vel>());
+        })
+    });
+
+    group.bench_function("get_component", |b| {
+        let mut store = ArchetypeStore::new();
+        for i in 0..1000u32 {
+            store.insert(
+                Entity::new(i, 0),
+                vec![(TypeId::of::<Pos>(), Box::new(Pos(i as f32, 0.0)))],
+            );
+        }
+        let target = Entity::new(500, 0);
+        b.iter(|| {
+            black_box(store.get::<Pos>(target));
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Job system
+// ---------------------------------------------------------------------------
+
+fn bench_job(c: &mut Criterion) {
+    use kiran::job::JobPool;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    let mut group = c.benchmark_group("job");
+
+    group.bench_function("scope_100_jobs", |b| {
+        let pool = JobPool::new(4);
+        let counter = Arc::new(AtomicU32::new(0));
+        b.iter(|| {
+            let jobs: Vec<_> = (0..100)
+                .map(|_| {
+                    let c = counter.clone();
+                    move || {
+                        c.fetch_add(1, Ordering::Relaxed);
+                    }
+                })
+                .collect();
+            pool.scope(jobs);
+        })
+    });
+
+    group.bench_function("scope_1000_jobs", |b| {
+        let pool = JobPool::new(4);
+        let counter = Arc::new(AtomicU32::new(0));
+        b.iter(|| {
+            let jobs: Vec<_> = (0..1000)
+                .map(|_| {
+                    let c = counter.clone();
+                    move || {
+                        c.fetch_add(1, Ordering::Relaxed);
+                    }
+                })
+                .collect();
+            pool.scope(jobs);
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_world,
@@ -1134,5 +1261,7 @@ criterion_group!(
     bench_asset,
     bench_scheduler_ordering,
     bench_pool,
+    bench_archetype,
+    bench_job,
 );
 criterion_main!(benches);

@@ -974,6 +974,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2265,12 +2274,14 @@ dependencies = [
  "bhava",
  "clap",
  "criterion",
+ "crossbeam-channel",
  "dhvani",
  "hisab",
  "hoosh",
  "impetus",
  "kavach",
  "majra 0.22.3",
+ "pravash",
  "raasta",
  "reqwest",
  "serde",
@@ -3139,6 +3150,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
 dependencies = [
  "zerocopy",
+]
+
+[[package]]
+name = "pravash"
+version = "0.2.0"
+dependencies = [
+ "hisab",
+ "serde",
+ "thiserror 2.0.18",
+ "tracing",
 ]
 
 [[package]]

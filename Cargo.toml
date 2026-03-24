@@ -23,7 +23,8 @@ scripting = ["dep:kavach", "dep:tokio"]
 multiplayer = ["dep:majra"]
 personality = ["dep:bhava"]
 navigation = ["dep:raasta"]
-full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation"]
+fluids = ["dep:pravash"]
+full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation", "fluids"]
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
@@ -34,6 +35,7 @@ toml = "0.8"
 anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
+crossbeam-channel = "0.5"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -61,6 +63,9 @@ majra = { version = "0.22", optional = true }
 
 # Navigation (optional)
 raasta = { path = "../raasta", optional = true }
+
+# Fluids (optional)
+pravash = { path = "../pravash", default-features = false, features = ["sph", "shallow"], optional = true }
 
 # Rendering (optional)
 soorat = { path = "../soorat", default-features = false, optional = true }
