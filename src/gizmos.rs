@@ -5,6 +5,7 @@
 
 /// A debug draw command.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum GizmoCommand {
     Line {
         a: [f32; 3],

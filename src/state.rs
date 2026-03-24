@@ -55,16 +55,21 @@ impl StateMachine {
     }
 
     /// Current state name.
+    #[must_use]
     pub fn current_name(&self) -> &str {
         self.states[self.current].name()
     }
 
     /// Current state index.
+    #[must_use]
+    #[inline]
     pub fn current_index(&self) -> usize {
         self.current
     }
 
     /// Number of registered states.
+    #[must_use]
+    #[inline]
     pub fn state_count(&self) -> usize {
         self.states.len()
     }

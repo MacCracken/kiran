@@ -483,6 +483,9 @@ pub(crate) fn spawn_entity_def(
                     looping: sound.looping,
                     playing: false,
                     max_distance: 50.0,
+                    pitch: 1.0,
+                    bus: Default::default(),
+                    fade: 1.0,
                 },
             )?;
         }

@@ -33,6 +33,7 @@ impl Personality {
     }
 
     /// Get the dominant emotion.
+    #[must_use]
     pub fn dominant_emotion(&self) -> bhava::mood::Emotion {
         self.mood.dominant_emotion()
     }
@@ -48,19 +49,22 @@ impl Personality {
     }
 
     /// Get the emotional intensity (how far from neutral).
+    #[must_use]
+    #[inline]
     pub fn emotional_intensity(&self) -> f32 {
         self.mood.intensity()
     }
 
     /// Generate a behavioral prompt string for AI (combines personality + mood).
+    #[must_use]
     pub fn compose_prompt(&self) -> String {
+        use std::fmt::Write;
         let personality_prompt = self.profile.compose_prompt();
         let dominant = self.dominant_emotion();
         let intensity = self.emotional_intensity();
-        format!(
-            "{}\nCurrent mood: {:?} (intensity: {:.2})",
-            personality_prompt, dominant, intensity
-        )
+        let mut out = personality_prompt;
+        let _ = write!(out, "\nCurrent mood: {dominant:?} (intensity: {intensity:.2})");
+        out
     }
 }
 

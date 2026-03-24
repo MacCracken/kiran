@@ -13,6 +13,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Keyboard key codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum KeyCode {
     // Letters
     A,
@@ -118,6 +119,7 @@ pub enum KeyCode {
 
 /// Mouse button identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum MouseButton {
     Left,
     Right,
@@ -132,6 +134,7 @@ pub enum MouseButton {
 
 /// Gamepad button identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GamepadButton {
     South, // A / Cross
     East,  // B / Circle
@@ -152,6 +155,7 @@ pub enum GamepadButton {
 
 /// Gamepad axis identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum GamepadAxis {
     LeftStickX,
     LeftStickY,
@@ -167,6 +171,7 @@ pub enum GamepadAxis {
 
 /// An input event produced by the platform layer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InputEvent {
     KeyPressed(KeyCode),
     KeyReleased(KeyCode),
@@ -201,6 +206,7 @@ pub enum InputEvent {
 
 /// Touch event phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TouchPhase {
     Started,
     Moved,
@@ -217,6 +223,7 @@ pub type ActionName = String;
 
 /// A physical input binding that triggers an action.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InputBinding {
     Key(KeyCode),
     Mouse(MouseButton),

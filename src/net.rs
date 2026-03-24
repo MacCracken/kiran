@@ -19,6 +19,7 @@ pub type NodeId = String;
 
 /// Role of this node in the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum NetRole {
     /// Authoritative server — owns game state, validates inputs.
     Server,
@@ -46,6 +47,7 @@ pub struct Replicated;
 
 /// Message reliability mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Reliability {
     /// Fire-and-forget — no retransmit, no ordering. Use for state updates.
     Unreliable,
@@ -55,6 +57,7 @@ pub enum Reliability {
 
 /// A network message sent between nodes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum NetMessage {
     /// State snapshot — full entity positions.
     StateSnapshot(StateSnapshot),
@@ -161,11 +164,14 @@ impl NetState {
     }
 
     /// Number of connected peers.
+    #[must_use]
+    #[inline]
     pub fn peer_count(&self) -> usize {
         self.peers.len()
     }
 
     /// Get connected peer IDs.
+    #[must_use]
     pub fn peers(&self) -> &[NodeId] {
         &self.peers
     }
@@ -206,11 +212,15 @@ impl NetState {
     }
 
     /// Is this node the server?
+    #[must_use]
+    #[inline]
     pub fn is_server(&self) -> bool {
         self.role == NetRole::Server
     }
 
     /// Is this node a client?
+    #[must_use]
+    #[inline]
     pub fn is_client(&self) -> bool {
         self.role == NetRole::Client
     }
@@ -284,8 +294,16 @@ impl ReliableChannel {
     }
 
     /// Number of unacknowledged reliable messages.
+    #[must_use]
+    #[inline]
     pub fn pending_count(&self) -> usize {
         self.pending_ack.len()
+    }
+
+    /// Trim received dedup set — discard sequences below a threshold.
+    /// Call periodically to prevent unbounded memory growth.
+    pub fn trim_received(&mut self, min_sequence: u64) {
+        self.received.retain(|&seq| seq >= min_sequence);
     }
 }
 
@@ -307,6 +325,8 @@ impl InterestArea {
     }
 
     /// Check if a position is within the interest area.
+    #[must_use]
+    #[inline]
     pub fn contains(&self, position: [f32; 3]) -> bool {
         let dx = position[0] - self.center[0];
         let dy = position[1] - self.center[1];
@@ -469,6 +489,8 @@ impl NetInterpolation {
     }
 
     /// Get the current interpolated position.
+    #[must_use]
+    #[inline]
     pub fn current(&self) -> [f32; 3] {
         [
             self.previous[0] + (self.target[0] - self.previous[0]) * self.alpha,
@@ -478,6 +500,8 @@ impl NetInterpolation {
     }
 
     /// Is interpolation complete (alpha >= 1.0)?
+    #[must_use]
+    #[inline]
     pub fn is_complete(&self) -> bool {
         self.alpha >= 1.0
     }
@@ -544,6 +568,7 @@ impl PredictionBuffer {
     }
 
     /// Get the predicted position at a tick (for server reconciliation).
+    #[must_use]
     pub fn at_tick(&self, tick: u64) -> Option<[f32; 3]> {
         self.history
             .iter()
@@ -567,10 +592,14 @@ impl PredictionBuffer {
         self.history.retain(|(_, t)| *t >= tick);
     }
 
+    #[must_use]
+    #[inline]
     pub fn len(&self) -> usize {
         self.history.len()
     }
 
+    #[must_use]
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.history.is_empty()
     }
@@ -627,11 +656,15 @@ impl ClockSync {
     }
 
     /// Convert local time to estimated server time.
+    #[must_use]
+    #[inline]
     pub fn to_server_time(&self, local_ms: f64) -> f64 {
         local_ms + self.offset_ms
     }
 
     /// Convert server time to estimated local time.
+    #[must_use]
+    #[inline]
     pub fn to_local_time(&self, server_ms: f64) -> f64 {
         server_ms - self.offset_ms
     }

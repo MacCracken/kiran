@@ -383,6 +383,7 @@ pub struct MeshDesc {
 
 /// A draw command submitted to the renderer.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DrawCommand {
     Clear([f32; 4]),
     Sprite(SpriteDesc),

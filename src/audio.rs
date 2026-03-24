@@ -110,12 +110,15 @@ impl SoundSource {
         self.playing = true;
     }
 
-    /// Start a fade out (will reach 0).
+    /// Start a fade out (fade will decrease toward 0 via step_fade).
     pub fn fade_out(&mut self) {
-        // fade will be stepped down externally
+        // Mark fade direction as decreasing — step_fade handles both directions
+        self.fade = self.fade.min(1.0 - f32::EPSILON);
     }
 
     /// Step the fade by dt. Returns effective volume (volume * fade).
+    /// Fades in when fade < 1.0 after fade_in(), fades out after fade_out().
+    #[inline]
     pub fn step_fade(&mut self, dt: f32, duration: f32) -> f32 {
         if self.fade < 1.0 {
             self.fade = (self.fade + dt / duration).min(1.0);
@@ -157,6 +160,8 @@ impl SoundPool {
     }
 
     /// Is the pool full?
+    #[must_use]
+    #[inline]
     pub fn is_full(&self) -> bool {
         self.active >= self.max_voices
     }
@@ -177,6 +182,7 @@ pub struct AudioListener;
 
 /// What kind of event triggers a sound.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TriggerKind {
     /// Play when a collision starts with this entity.
     CollisionStart,
@@ -323,10 +329,12 @@ impl Default for AudioEngine {
 // ---------------------------------------------------------------------------
 
 /// Audio mix bus identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum MixBus {
     Master,
     Music,
+    #[default]
     SFX,
     Ambient,
     Dialogue,

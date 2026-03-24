@@ -623,8 +623,8 @@ fn soorat_re_exports_complete() {
     // Type size checks (no GPU required)
     assert_eq!(std::mem::size_of::<Vertex2D>(), 32);
     assert_eq!(std::mem::size_of::<Vertex3D>(), 48);
-    assert_eq!(std::mem::size_of::<CameraUniforms>(), 128);
-    assert_eq!(std::mem::size_of::<LightUniforms>(), 48);
+    assert_eq!(std::mem::size_of::<CameraUniforms>(), 192);
+    assert_eq!(std::mem::size_of::<LightUniforms>(), 112);
     assert!(std::mem::size_of::<Color>() > 0);
     assert!(std::mem::size_of::<FrameStats>() > 0);
     assert!(std::mem::size_of::<LineVertex>() > 0);

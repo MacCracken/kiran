@@ -392,6 +392,7 @@ impl Default for PhysicsEngine {
 
 /// Physics collision event — uses kiran entity IDs instead of impetus handles.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum PhysicsCollisionEvent {
     Started { entity_a: Entity, entity_b: Entity },
     Stopped { entity_a: Entity, entity_b: Entity },
@@ -412,6 +413,7 @@ pub struct DebugShape {
 
 /// The kind of debug wireframe shape.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum DebugShapeKind {
     Circle { radius: f64 },
     Box { half_extents: [f64; 3] },

@@ -35,6 +35,7 @@ pub struct AssetEntry {
 
 /// Known asset types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum AssetType {
     Texture,
     Sound,

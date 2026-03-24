@@ -18,6 +18,7 @@ use thiserror::Error;
 
 /// Errors produced by kiran.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum KiranError {
     #[error("entity {0:?} does not exist")]
     EntityNotFound(Entity),
@@ -625,6 +626,7 @@ impl ChangeTracker {
 
 /// Pipeline stage for ordering systems.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum SystemStage {
     /// Read input events, update InputState.
     Input = 0,
