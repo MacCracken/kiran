@@ -811,10 +811,11 @@ impl Scheduler {
                 sorted.push(node);
                 if let Some(neighbors) = edges.get(&node) {
                     for &neighbor in neighbors {
-                        let deg = in_degree.get_mut(&neighbor).unwrap();
-                        *deg -= 1;
-                        if *deg == 0 {
-                            queue.push_back(neighbor);
+                        if let Some(deg) = in_degree.get_mut(&neighbor) {
+                            *deg -= 1;
+                            if *deg == 0 {
+                                queue.push_back(neighbor);
+                            }
                         }
                     }
                 }
@@ -1558,6 +1559,171 @@ mod tests {
             scheduler.run(&mut world);
         }
         assert_eq!(*count.lock().unwrap(), 5);
+    }
+
+    #[test]
+    fn scheduler_after_ordering() {
+        use std::sync::{Arc, Mutex};
+        let order: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        struct OrderedSystem {
+            name: String,
+            after_deps: Vec<&'static str>,
+            order: Arc<Mutex<Vec<String>>>,
+        }
+
+        impl System for OrderedSystem {
+            fn run(&mut self, _world: &mut World) {
+                self.order.lock().unwrap().push(self.name.clone());
+            }
+            fn stage(&self) -> SystemStage {
+                SystemStage::GameLogic
+            }
+            fn name(&self) -> &str {
+                &self.name
+            }
+            fn after(&self) -> &[&str] {
+                &self.after_deps
+            }
+        }
+
+        let mut scheduler = Scheduler::new();
+        // B runs after A
+        scheduler.add_system(Box::new(OrderedSystem {
+            name: "B".into(),
+            after_deps: vec!["A"],
+            order: order.clone(),
+        }));
+        scheduler.add_system(Box::new(OrderedSystem {
+            name: "A".into(),
+            after_deps: vec![],
+            order: order.clone(),
+        }));
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        let result = order.lock().unwrap();
+        assert_eq!(result[0], "A");
+        assert_eq!(result[1], "B");
+    }
+
+    #[test]
+    fn scheduler_before_ordering() {
+        use std::sync::{Arc, Mutex};
+        let order: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        struct BeforeSystem {
+            name: String,
+            before_deps: Vec<&'static str>,
+            order: Arc<Mutex<Vec<String>>>,
+        }
+
+        impl System for BeforeSystem {
+            fn run(&mut self, _world: &mut World) {
+                self.order.lock().unwrap().push(self.name.clone());
+            }
+            fn stage(&self) -> SystemStage {
+                SystemStage::GameLogic
+            }
+            fn name(&self) -> &str {
+                &self.name
+            }
+            fn before(&self) -> &[&str] {
+                &self.before_deps
+            }
+        }
+
+        let mut scheduler = Scheduler::new();
+        // A runs before B (added in reverse)
+        scheduler.add_system(Box::new(BeforeSystem {
+            name: "B".into(),
+            before_deps: vec![],
+            order: order.clone(),
+        }));
+        scheduler.add_system(Box::new(BeforeSystem {
+            name: "A".into(),
+            before_deps: vec!["B"],
+            order: order.clone(),
+        }));
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        let result = order.lock().unwrap();
+        assert_eq!(result[0], "A");
+        assert_eq!(result[1], "B");
+    }
+
+    #[test]
+    fn scheduler_chain_ordering() {
+        use std::sync::{Arc, Mutex};
+        let order: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+        struct ChainSys {
+            name: String,
+            after_deps: Vec<&'static str>,
+            order: Arc<Mutex<Vec<String>>>,
+        }
+
+        impl System for ChainSys {
+            fn run(&mut self, _world: &mut World) {
+                self.order.lock().unwrap().push(self.name.clone());
+            }
+            fn stage(&self) -> SystemStage {
+                SystemStage::GameLogic
+            }
+            fn name(&self) -> &str {
+                &self.name
+            }
+            fn after(&self) -> &[&str] {
+                &self.after_deps
+            }
+        }
+
+        let mut scheduler = Scheduler::new();
+        // C after B, B after A (added out of order)
+        scheduler.add_system(Box::new(ChainSys {
+            name: "C".into(),
+            after_deps: vec!["B"],
+            order: order.clone(),
+        }));
+        scheduler.add_system(Box::new(ChainSys {
+            name: "A".into(),
+            after_deps: vec![],
+            order: order.clone(),
+        }));
+        scheduler.add_system(Box::new(ChainSys {
+            name: "B".into(),
+            after_deps: vec!["A"],
+            order: order.clone(),
+        }));
+
+        let mut world = World::new();
+        scheduler.run(&mut world);
+
+        let result = order.lock().unwrap();
+        assert_eq!(*result, vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn scheduler_cross_stage_independence() {
+        // Ordering constraints only apply within the same stage
+        let mut scheduler = Scheduler::new();
+        scheduler.add_system(Box::new(FnSystem::new(
+            "input_sys",
+            SystemStage::Input,
+            |_: &mut World| {},
+        )));
+        scheduler.add_system(Box::new(FnSystem::new(
+            "render_sys",
+            SystemStage::Render,
+            |_: &mut World| {},
+        )));
+
+        let names = scheduler.system_names();
+        assert_eq!(names[0], "input_sys");
+        assert_eq!(names[1], "render_sys");
     }
 
     #[test]

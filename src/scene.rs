@@ -253,6 +253,9 @@ pub struct Parent(pub Entity);
 pub struct Children(pub Vec<Entity>);
 
 /// Material definition attached to an entity.
+///
+/// Data-side PBR material component. For GPU upload, convert to soorat's
+/// `MaterialUniforms` via [`to_material_uniforms()`](Material::to_material_uniforms).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Material {
     /// Base color as RGBA (0.0–1.0).
@@ -261,6 +264,12 @@ pub struct Material {
     /// Optional texture file path.
     #[serde(default)]
     pub texture: Option<String>,
+    /// Metallic factor (0.0 = dielectric, 1.0 = metal).
+    #[serde(default)]
+    pub metallic: f32,
+    /// Roughness factor (0.0 = mirror, 1.0 = matte).
+    #[serde(default = "Material::default_roughness")]
+    pub roughness: f32,
 }
 
 impl Default for Material {
@@ -268,6 +277,8 @@ impl Default for Material {
         Self {
             color: [1.0, 1.0, 1.0, 1.0],
             texture: None,
+            metallic: 0.0,
+            roughness: 0.5,
         }
     }
 }
@@ -275,6 +286,23 @@ impl Default for Material {
 impl Material {
     fn default_color() -> [f32; 4] {
         [1.0, 1.0, 1.0, 1.0]
+    }
+
+    fn default_roughness() -> f32 {
+        0.5
+    }
+
+    /// Convert to soorat's GPU-side `MaterialUniforms`.
+    #[cfg(feature = "rendering")]
+    #[must_use]
+    pub fn to_material_uniforms(&self) -> crate::gpu::MaterialUniforms {
+        crate::gpu::MaterialUniforms {
+            base_color_factor: self.color,
+            metallic: self.metallic,
+            roughness: self.roughness,
+            _pad0: 0.0,
+            _pad1: 0.0,
+        }
     }
 }
 

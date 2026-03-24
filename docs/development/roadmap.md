@@ -80,12 +80,18 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 
 - [ ] Archetype-based SOA component storage
 - [ ] Job system / task parallelism
-- [ ] SIMD-friendly data layouts
-- [ ] Object pooling / arena allocators
+- [x] ~~SIMD-friendly data layouts~~ — `SimdVec`, `Soa2d`, `Soa3d` SOA storage in `pool` module
+- [x] ~~Object pooling / arena allocators~~ — `Pool<T>`, `FrameArena` bump allocator
 - [ ] VR/XR support
-- [ ] Procedural world generation via hoosh LLM
-- [ ] joshua integration (NPC AI, headless simulation)
-- [ ] Science crate integration (optics, fluids, electromagnetism, thermodynamics)
+- [ ] Fluid dynamics crate integration (TBD — SPH, Navier-Stokes, via soorat's pravash feature)
+- [ ] Electromagnetism crate integration (TBD — fields, Maxwell's equations)
+- [ ] Thermodynamics crate integration (TBD — heat transfer, conduction)
+- [ ] Quantum mechanics crate integration (TBD — state vectors, Hilbert spaces)
+
+Note: prakash (optics) already integrated via soorat. Science crates above are not yet scaffolded — see [shared-crates.md](../../agnosticos/docs/development/applications/shared-crates.md).
+- [x] ~~Migrate `Material` to PBR~~ — added `metallic`/`roughness` fields + `to_material_uniforms()` bridge
+- [x] ~~`MeshDrawParams` re-export~~ — available via `kiran::gpu::MeshDrawParams`
+- [x] ~~`SpriteBatchDrawParams` re-export~~ — available via `kiran::gpu::SpriteBatchDrawParams`
 
 ## Dependency Map
 

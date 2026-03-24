@@ -856,6 +856,263 @@ fn bench_net(c: &mut Criterion) {
 #[cfg(not(feature = "multiplayer"))]
 fn bench_net(_c: &mut Criterion) {}
 
+// ---------------------------------------------------------------------------
+// Animation state machine
+// ---------------------------------------------------------------------------
+
+fn bench_animation(c: &mut Criterion) {
+    use kiran::animation::{AnimNode, AnimState};
+
+    let mut group = c.benchmark_group("animation");
+
+    group.bench_function("tick_no_transition", |b| {
+        let mut state = AnimState::new();
+        state.add_node(AnimNode::new("idle", 0));
+        b.iter(|| {
+            black_box(state.tick(black_box(0.016)));
+        })
+    });
+
+    group.bench_function("tick_with_blend", |b| {
+        let mut state = AnimState::new();
+        state.add_node(AnimNode::new("idle", 0));
+        state.add_node(AnimNode::new("walk", 1));
+        state.add_transition(0, 1, 1.0, "walk");
+        state.set_param("walk", true);
+        let _ = state.tick(0.01); // start blending
+        b.iter(|| {
+            black_box(state.tick(black_box(0.016)));
+        })
+    });
+
+    group.bench_function("evaluate_10_transitions", |b| {
+        let mut state = AnimState::new();
+        for i in 0..11 {
+            state.add_node(AnimNode::new(format!("state_{i}"), i));
+        }
+        for i in 0..10 {
+            state.add_transition(0, i + 1, 0.3, format!("trigger_{i}"));
+        }
+        b.iter(|| {
+            black_box(state.tick(black_box(0.016)));
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "navigation")]
+fn bench_nav(c: &mut Criterion) {
+    use kiran::nav::{GridPos, NavAgent, NavGrid};
+
+    let mut group = c.benchmark_group("navigation");
+
+    group.bench_function("grid_astar_20x20", |b| {
+        let grid = NavGrid::new(20, 20, 1.0);
+        b.iter(|| {
+            black_box(grid.find_path(GridPos::new(0, 0), GridPos::new(19, 19)));
+        })
+    });
+
+    group.bench_function("grid_astar_50x50", |b| {
+        let grid = NavGrid::new(50, 50, 1.0);
+        b.iter(|| {
+            black_box(grid.find_path(GridPos::new(0, 0), GridPos::new(49, 49)));
+        })
+    });
+
+    group.bench_function("flow_field_20x20", |b| {
+        let grid = NavGrid::new(20, 20, 1.0);
+        b.iter(|| {
+            black_box(grid.flow_field(GridPos::new(19, 19)));
+        })
+    });
+
+    group.bench_function("nav_agent_step", |b| {
+        let mut agent = NavAgent::new(5.0);
+        agent.set_path(vec![[5.0, 0.0], [10.0, 5.0], [15.0, 10.0], [20.0, 15.0]]);
+        b.iter(|| {
+            black_box(agent.step(black_box([0.0, 0.0])));
+        })
+    });
+
+    group.finish();
+}
+
+#[cfg(not(feature = "navigation"))]
+fn bench_nav(_c: &mut Criterion) {}
+
+// ---------------------------------------------------------------------------
+// Asset loading
+// ---------------------------------------------------------------------------
+
+fn bench_asset(c: &mut Criterion) {
+    use kiran::asset::{AssetRegistry, AssetType, PreprocessPipeline, PreprocessStep};
+
+    let mut group = c.benchmark_group("asset");
+
+    group.bench_function("register_100_assets", |b| {
+        b.iter(|| {
+            let mut reg = AssetRegistry::new();
+            for i in 0..100 {
+                reg.register(format!("assets/texture_{i}.png"), AssetType::Texture);
+            }
+            black_box(&reg);
+        })
+    });
+
+    group.bench_function("lookup_by_path", |b| {
+        let mut reg = AssetRegistry::new();
+        for i in 0..100 {
+            reg.register(format!("assets/texture_{i}.png"), AssetType::Texture);
+        }
+        b.iter(|| {
+            black_box(reg.handle_for("assets/texture_50.png"));
+        })
+    });
+
+    group.bench_function("preprocess_pipeline_steps_for", |b| {
+        let mut pipeline = PreprocessPipeline::new();
+        for _ in 0..10 {
+            pipeline.add_step(AssetType::Texture, PreprocessStep::GenerateMipmaps);
+            pipeline.add_step(AssetType::Model, PreprocessStep::OptimizeMesh);
+        }
+        b.iter(|| {
+            black_box(pipeline.steps_for(AssetType::Texture));
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Scheduler ordering
+// ---------------------------------------------------------------------------
+
+fn bench_scheduler_ordering(c: &mut Criterion) {
+    use kiran::world::{FnSystem, Scheduler, SystemStage};
+
+    let mut group = c.benchmark_group("scheduler_ordering");
+
+    group.bench_function("run_10_systems_ordered", |b| {
+        let mut scheduler = Scheduler::new();
+        for i in 0..10 {
+            scheduler.add_system(Box::new(FnSystem::new(
+                format!("sys_{i}"),
+                SystemStage::GameLogic,
+                |_: &mut World| {},
+            )));
+        }
+        let mut world = World::new();
+        // Warm up (builds order)
+        scheduler.run(&mut world);
+        b.iter(|| {
+            scheduler.run(black_box(&mut world));
+        })
+    });
+
+    group.bench_function("run_50_systems_4_stages", |b| {
+        let mut scheduler = Scheduler::new();
+        let stages = [
+            SystemStage::Input,
+            SystemStage::Physics,
+            SystemStage::GameLogic,
+            SystemStage::Render,
+        ];
+        for i in 0..50 {
+            scheduler.add_system(Box::new(FnSystem::new(
+                format!("sys_{i}"),
+                stages[i % 4],
+                |_: &mut World| {},
+            )));
+        }
+        let mut world = World::new();
+        scheduler.run(&mut world);
+        b.iter(|| {
+            scheduler.run(black_box(&mut world));
+        })
+    });
+
+    group.finish();
+}
+
+// ---------------------------------------------------------------------------
+// Pool + Arena + SIMD
+// ---------------------------------------------------------------------------
+
+fn bench_pool(c: &mut Criterion) {
+    use kiran::pool::{FrameArena, Pool, SimdVec, Soa3d};
+
+    let mut group = c.benchmark_group("pool");
+
+    group.bench_function("acquire_release_100", |b| {
+        let mut pool: Pool<Vec<f32>> = Pool::with_capacity(Vec::new, 100);
+        b.iter(|| {
+            let mut held = Vec::with_capacity(100);
+            for _ in 0..100 {
+                held.push(pool.acquire());
+            }
+            for v in held {
+                pool.release(v);
+            }
+        })
+    });
+
+    group.bench_function("arena_alloc_reset", |b| {
+        let mut arena = FrameArena::new(64 * 1024);
+        b.iter(|| {
+            for _ in 0..100 {
+                black_box(arena.alloc_slice::<f32>(64));
+            }
+            arena.reset();
+        })
+    });
+
+    group.bench_function("simd_vec_apply_1000", |b| {
+        let mut v = SimdVec::filled(1.0, 1000);
+        b.iter(|| {
+            v.apply(|x| x + black_box(0.1));
+        })
+    });
+
+    group.bench_function("simd_vec_add_assign_1000", |b| {
+        let mut a = SimdVec::filled(1.0, 1000);
+        let b_vec = SimdVec::filled(0.1, 1000);
+        b.iter(|| {
+            a.add_assign(black_box(&b_vec));
+        })
+    });
+
+    group.bench_function("soa3d_translate_1000", |b| {
+        let mut soa = Soa3d::new();
+        for i in 0..1000 {
+            soa.push(i as f32, i as f32, i as f32);
+        }
+        b.iter(|| {
+            soa.translate(black_box(1.0), black_box(2.0), black_box(3.0));
+        })
+    });
+
+    group.bench_function("soa3d_add_velocities_1000", |b| {
+        let mut soa = Soa3d::new();
+        for i in 0..1000 {
+            soa.push(i as f32, i as f32, i as f32);
+        }
+        let vx = SimdVec::filled(0.1, 1000);
+        let vy = SimdVec::filled(0.2, 1000);
+        let vz = SimdVec::filled(0.3, 1000);
+        b.iter(|| {
+            soa.add_velocities(black_box(&vx), black_box(&vy), black_box(&vz));
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_world,
@@ -872,5 +1129,10 @@ criterion_group!(
     bench_script,
     bench_soorat,
     bench_net,
+    bench_animation,
+    bench_nav,
+    bench_asset,
+    bench_scheduler_ordering,
+    bench_pool,
 );
 criterion_main!(benches);

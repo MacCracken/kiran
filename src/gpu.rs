@@ -16,10 +16,13 @@ pub use soorat::hdr::{BloomPipeline, BloomUniforms, HdrFramebuffer};
 pub use soorat::instancing::{InstanceBuffer, InstanceData};
 pub use soorat::lights::{GpuLight, LightArrayUniforms};
 pub use soorat::lod::{LodChain, TerrainLod};
-pub use soorat::material::Material as SooratMaterial;
-pub use soorat::mesh_pipeline::{CameraUniforms, DepthBuffer, LightUniforms, Mesh, MeshPipeline};
+pub use soorat::mesh_pipeline::{
+    CameraUniforms, DepthBuffer, LightUniforms, Mesh, MeshDrawParams, MeshPipeline,
+};
 pub use soorat::pbr_material::MaterialUniforms;
-pub use soorat::pipeline::{FrameStats, SpriteBuffers, SpritePipeline, batch_to_vertices};
+pub use soorat::pipeline::{
+    FrameStats, SpriteBatchDrawParams, SpriteBuffers, SpritePipeline, batch_to_vertices,
+};
 pub use soorat::postprocess::{PostProcessPipeline, PostProcessUniforms, ToneMapMode};
 pub use soorat::profiler::{FrameProfiler as GpuFrameProfiler, GpuTimestamps, PassTiming};
 pub use soorat::render_graph::{PassType, RenderGraph, RenderPassNode};

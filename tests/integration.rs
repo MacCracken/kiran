@@ -648,18 +648,34 @@ fn soorat_re_exports_complete() {
 
 #[cfg(feature = "rendering")]
 #[test]
-fn soorat_no_name_collision_with_kiran_material() {
-    // kiran::scene::Material and kiran::gpu::SooratMaterial are different types
-    use kiran::gpu::SooratMaterial;
-    use kiran::scene::Material as SceneMaterial;
+fn material_to_uniforms() {
+    use kiran::scene::Material;
 
-    // They're different types — this should compile
-    let _scene_mat = SceneMaterial {
+    let mat = Material {
         color: [1.0, 0.0, 0.0, 1.0],
         texture: None,
+        metallic: 0.8,
+        roughness: 0.2,
     };
-    // SooratMaterial requires GPU device — just check type exists
-    assert!(std::mem::size_of::<SooratMaterial>() > 0);
+    let uniforms = mat.to_material_uniforms();
+    assert_eq!(uniforms.base_color_factor, [1.0, 0.0, 0.0, 1.0]);
+    assert!((uniforms.metallic - 0.8).abs() < f32::EPSILON);
+    assert!((uniforms.roughness - 0.2).abs() < f32::EPSILON);
+
+    // Default material → default uniforms
+    let default_mat = Material::default();
+    let default_uni = default_mat.to_material_uniforms();
+    assert_eq!(default_uni.metallic, 0.0);
+    assert!((default_uni.roughness - 0.5).abs() < f32::EPSILON);
+}
+
+#[cfg(feature = "rendering")]
+#[test]
+fn draw_params_re_exported() {
+    use kiran::gpu::{MeshDrawParams, SpriteBatchDrawParams};
+    // Just verify the types exist and are accessible
+    assert!(std::mem::size_of::<MeshDrawParams>() > 0);
+    assert!(std::mem::size_of::<SpriteBatchDrawParams>() > 0);
 }
 
 #[test]

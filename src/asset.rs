@@ -19,6 +19,8 @@ impl AssetHandle {
     pub const NONE: Self = Self(0);
 
     /// Check if this handle is valid (non-zero).
+    #[must_use]
+    #[inline]
     pub fn is_valid(self) -> bool {
         self.0 != 0
     }
@@ -131,21 +133,26 @@ impl AssetRegistry {
     }
 
     /// Get the handle for a path.
+    #[must_use]
     pub fn handle_for(&self, path: impl AsRef<Path>) -> Option<AssetHandle> {
         self.path_to_handle.get(path.as_ref()).copied()
     }
 
     /// Get the entry for a handle.
+    #[must_use]
     pub fn get(&self, handle: AssetHandle) -> Option<&AssetEntry> {
         self.entries.get(&handle)
     }
 
     /// Get the path for a handle.
+    #[must_use]
     pub fn path_for(&self, handle: AssetHandle) -> Option<&Path> {
         self.entries.get(&handle).map(|e| e.path.as_path())
     }
 
     /// Number of registered assets.
+    #[must_use]
+    #[inline]
     pub fn count(&self) -> usize {
         self.entries.len()
     }
@@ -163,16 +170,19 @@ impl AssetRegistry {
     }
 
     /// Check if a handle needs reloading.
+    #[must_use]
     pub fn is_dirty(&self, handle: AssetHandle) -> bool {
         self.dirty.contains(&handle)
     }
 
     /// Total size of all registered assets in bytes.
+    #[must_use]
     pub fn total_size_bytes(&self) -> usize {
         self.entries.values().map(|e| e.size_bytes).sum()
     }
 
     /// List all registered assets of a given type.
+    #[must_use]
     pub fn assets_of_type(&self, asset_type: AssetType) -> Vec<AssetHandle> {
         self.entries
             .values()
