@@ -63,7 +63,10 @@ impl Personality {
         let dominant = self.dominant_emotion();
         let intensity = self.emotional_intensity();
         let mut out = personality_prompt;
-        let _ = write!(out, "\nCurrent mood: {dominant:?} (intensity: {intensity:.2})");
+        let _ = write!(
+            out,
+            "\nCurrent mood: {dominant:?} (intensity: {intensity:.2})"
+        );
         out
     }
 }

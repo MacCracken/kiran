@@ -76,10 +76,10 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 - [ ] **Async asset loading** — background loading with completion callbacks
 - [ ] **Asset preprocessing** — compress textures, optimize meshes at build time
 
-#### Completed by soorat (removed from kiran roadmap)
-- Instanced rendering — `InstanceBuffer` + `InstanceData` in soorat
-- GPU particle rendering — moved to soorat roadmap
-- Multi-pass rendering / render graph — moved to soorat roadmap
+#### Completed by soorat (re-exported via gpu.rs)
+- Instanced rendering — `InstanceBuffer` + `InstanceData`
+- GPU particle rendering — `GpuParticleSystem`, `GpuParticle`, `SimParams`
+- Render graph — `RenderGraph`, `RenderPassNode`, `PassType` (multi-pass abstraction)
 
 ### P3 — Future
 

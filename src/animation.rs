@@ -20,6 +20,7 @@ pub struct AnimNode {
 }
 
 impl AnimNode {
+    #[must_use]
     pub fn new(name: impl Into<String>, clip_index: usize) -> Self {
         Self {
             name: name.into(),
@@ -29,6 +30,7 @@ impl AnimNode {
         }
     }
 
+    #[must_use]
     pub fn once(name: impl Into<String>, clip_index: usize) -> Self {
         Self {
             name: name.into(),
@@ -75,6 +77,7 @@ pub struct AnimState {
 }
 
 impl AnimState {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -125,6 +128,7 @@ impl AnimState {
     ///
     /// Checks for triggered transitions, advances blend, updates playback time.
     /// Returns the current clip index (and optionally blend target + alpha).
+    #[must_use]
     pub fn tick(&mut self, dt: f32) -> AnimPlayback {
         // Check for new transitions
         if self.blend_target.is_none() {
@@ -165,7 +169,11 @@ impl AnimState {
         }
 
         AnimPlayback {
-            clip_index: self.nodes.get(self.current).map(|n| n.clip_index).unwrap_or(0),
+            clip_index: self
+                .nodes
+                .get(self.current)
+                .map(|n| n.clip_index)
+                .unwrap_or(0),
             time: self.time,
             blend: self.blend_target.map(|t| {
                 let clip = self.nodes.get(t).map(|n| n.clip_index).unwrap_or(0);
@@ -257,7 +265,7 @@ mod tests {
         state.add_transition(0, 1, 0.5, "walk");
 
         // No trigger — stays idle
-        state.tick(0.1);
+        let _ = state.tick(0.1);
         assert_eq!(state.current_name(), "idle");
         assert!(!state.is_blending());
 
@@ -279,10 +287,10 @@ mod tests {
         state.add_transition(0, 1, 0.2, "go");
 
         state.set_param("go", true);
-        state.tick(0.1);
+        let _ = state.tick(0.1);
         assert!(state.is_blending());
 
-        state.tick(0.15); // exceeds blend duration
+        let _ = state.tick(0.15); // exceeds blend duration
         assert!(!state.is_blending());
         assert_eq!(state.current_name(), "walk");
     }
@@ -295,7 +303,7 @@ mod tests {
         state.add_transition(0, 1, 0.0, "run");
 
         state.set_param("run", true);
-        state.tick(0.01);
+        let _ = state.tick(0.01);
         assert_eq!(state.current_name(), "run");
         assert!(!state.is_blending());
     }
@@ -328,7 +336,7 @@ mod tests {
         state.add_transition(0, 1, 0.1, "go");
 
         state.set_param("go", true);
-        state.tick(0.2); // complete transition
+        let _ = state.tick(0.2); // complete transition
         // Trigger should be reset
         assert!(!state.get_param("go"));
     }
@@ -372,12 +380,12 @@ mod tests {
 
         // idle → walk
         state.set_param("walk", true);
-        state.tick(0.2);
+        let _ = state.tick(0.2);
         assert_eq!(state.current_name(), "walk");
 
         // walk → run
         state.set_param("run", true);
-        state.tick(0.2);
+        let _ = state.tick(0.2);
         assert_eq!(state.current_name(), "run");
     }
 }

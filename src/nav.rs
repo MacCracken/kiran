@@ -68,38 +68,40 @@ impl NavAgent {
             return SteerOutput::default();
         }
 
-        let Some(&target) = self.path.get(self.path_index) else {
-            self.arrived = true;
-            return SteerOutput::default();
-        };
+        let radius_sq = self.arrival_radius * self.arrival_radius;
 
-        let dx = target[0] - position[0];
-        let dy = target[1] - position[1];
-        let dist = (dx * dx + dy * dy).sqrt();
+        // Skip past any waypoints within arrival radius (loop, not recursion)
+        loop {
+            let Some(&target) = self.path.get(self.path_index) else {
+                self.arrived = true;
+                return SteerOutput::default();
+            };
 
-        // Reached waypoint — advance
-        if dist < self.arrival_radius {
+            let dx = target[0] - position[0];
+            let dy = target[1] - position[1];
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq >= radius_sq {
+                // Not yet at this waypoint — steer toward it
+                let is_last = self.path_index == self.path.len() - 1;
+                let behavior = if is_last {
+                    SteerBehavior::Arrive {
+                        target,
+                        slow_radius: self.arrival_radius * 4.0,
+                    }
+                } else {
+                    SteerBehavior::Seek { target }
+                };
+                return compute_steer(&behavior, position, self.max_speed);
+            }
+
+            // Within arrival radius — advance to next waypoint
             self.path_index += 1;
             if self.path_index >= self.path.len() {
                 self.arrived = true;
                 return SteerOutput::default();
             }
-            // Recurse for next waypoint
-            return self.step(position);
         }
-
-        // Use arrive behavior for last waypoint, seek for intermediate
-        let is_last = self.path_index == self.path.len() - 1;
-        let behavior = if is_last {
-            SteerBehavior::Arrive {
-                target,
-                slow_radius: self.arrival_radius * 4.0,
-            }
-        } else {
-            SteerBehavior::Seek { target }
-        };
-
-        compute_steer(&behavior, position, self.max_speed)
     }
 
     /// Remaining waypoints.
@@ -221,9 +223,7 @@ mod tests {
     fn nav_agent_as_component() {
         let mut world = World::new();
         let e = world.spawn();
-        world
-            .insert_component(e, NavAgent::new(3.0))
-            .unwrap();
+        world.insert_component(e, NavAgent::new(3.0)).unwrap();
         assert!(world.has_component::<NavAgent>(e));
     }
 
@@ -231,18 +231,10 @@ mod tests {
     fn request_grid_path_works() {
         let mut world = World::new();
         let e = world.spawn();
-        world
-            .insert_component(e, NavAgent::new(5.0))
-            .unwrap();
+        world.insert_component(e, NavAgent::new(5.0)).unwrap();
 
         let grid = NavGrid::new(10, 10, 1.0);
-        let ok = request_grid_path(
-            &mut world,
-            e,
-            &grid,
-            GridPos::new(0, 0),
-            GridPos::new(9, 9),
-        );
+        let ok = request_grid_path(&mut world, e, &grid, GridPos::new(0, 0), GridPos::new(9, 9));
         assert!(ok);
 
         let agent = world.get_component::<NavAgent>(e).unwrap();
@@ -254,20 +246,12 @@ mod tests {
     fn request_grid_path_blocked() {
         let mut world = World::new();
         let e = world.spawn();
-        world
-            .insert_component(e, NavAgent::new(5.0))
-            .unwrap();
+        world.insert_component(e, NavAgent::new(5.0)).unwrap();
 
         let mut grid = NavGrid::new(5, 1, 1.0);
         grid.set_walkable(2, 0, false);
 
-        let ok = request_grid_path(
-            &mut world,
-            e,
-            &grid,
-            GridPos::new(0, 0),
-            GridPos::new(4, 0),
-        );
+        let ok = request_grid_path(&mut world, e, &grid, GridPos::new(0, 0), GridPos::new(4, 0));
         assert!(!ok);
 
         let agent = world.get_component::<NavAgent>(e).unwrap();
@@ -288,13 +272,7 @@ mod tests {
 
     #[test]
     fn steer_reexport() {
-        let out = compute_steer(
-            &SteerBehavior::Seek {
-                target: [1.0, 0.0],
-            },
-            [0.0, 0.0],
-            1.0,
-        );
+        let out = compute_steer(&SteerBehavior::Seek { target: [1.0, 0.0] }, [0.0, 0.0], 1.0);
         assert!(out.speed() > 0.0);
     }
 
