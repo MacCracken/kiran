@@ -6,7 +6,11 @@
 
 pub use soorat::GpuContext;
 pub use soorat::color::Color;
-pub use soorat::pipeline::{SpritePipeline, batch_to_vertices};
+pub use soorat::debug_draw::{LineBatch, LinePipeline, LineVertex};
+pub use soorat::material::Material as SooratMaterial;
+pub use soorat::mesh_pipeline::{CameraUniforms, DepthBuffer, LightUniforms, Mesh, MeshPipeline};
+pub use soorat::pipeline::{FrameStats, SpritePipeline, batch_to_vertices};
+pub use soorat::render_target::RenderTarget;
 pub use soorat::sprite::{Sprite, SpriteBatch, UvRect};
 pub use soorat::texture::{Texture, TextureCache};
 pub use soorat::vertex::{Vertex2D, Vertex3D};
