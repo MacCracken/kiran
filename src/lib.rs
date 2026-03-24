@@ -14,6 +14,9 @@ pub mod ai;
 #[cfg(feature = "audio")]
 pub mod audio;
 
+#[cfg(feature = "personality")]
+pub mod personality;
+
 #[cfg(feature = "physics")]
 pub mod physics;
 

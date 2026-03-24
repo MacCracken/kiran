@@ -21,7 +21,8 @@ physics-3d = ["physics", "impetus/3d"]
 rendering = ["dep:soorat"]
 scripting = ["dep:kavach", "dep:tokio"]
 multiplayer = ["dep:majra"]
-full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer"]
+personality = ["dep:bhava"]
+full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality"]
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
@@ -49,6 +50,9 @@ impetus = { path = "../impetus", optional = true }
 
 # Scripting (optional)
 kavach = { path = "../kavach", features = ["wasm"], default-features = false, optional = true }
+
+# Personality (optional)
+bhava = { version = "0.23", optional = true }
 
 # Multiplayer (optional)
 majra = { version = "0.22", optional = true }
