@@ -50,10 +50,10 @@ tokio = { version = "1", features = ["full"], optional = true }
 dhvani = { version = "0.22", optional = true }
 
 # Physics (optional)
-impetus = { path = "../impetus", optional = true }
+impetus = { version = "0.23", optional = true }
 
 # Scripting (optional)
-kavach = { path = "../kavach", features = ["wasm"], default-features = false, optional = true }
+kavach = { version = "0.22", features = ["wasm"], default-features = false, optional = true }
 
 # Personality (optional)
 bhava = { version = "0.23", optional = true }
