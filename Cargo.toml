@@ -12,7 +12,7 @@ audio = ["dep:dhvani"]
 physics = ["dep:impetus"]
 physics-3d = ["physics", "impetus/3d"]
 rendering = ["dep:soorat"]
-scripting = ["dep:kavach"]
+scripting = ["dep:kavach", "dep:tokio"]
 full = ["ai", "audio", "physics", "rendering", "scripting"]
 
 [dependencies]

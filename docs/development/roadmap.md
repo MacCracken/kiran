@@ -93,11 +93,17 @@ Kiran does NOT own:
 - ViewportState with OrbitController, gizmo modes, grid/debug toggles
 - 25 tests (22 unit + 3 integration)
 
+### kavach WASM Scripting (2026-03-23)
+
+- kavach WasmBackend wired into ScriptEngine (`scripting` feature)
+- `exec_wasm()` — runs .wasm files via wasmtime with fuel metering + timeout
+- `run_scripts()` auto-detects .wasm sources → kavach execution, falls back to message state
+- `wasm_available()` health check
+
 ## Remaining
 
 ### Scripting
 
-- [ ] kavach WASM backend wiring (kavach 0.23.3 wasm feature now builds — ready to wire)
 - [ ] Hot reload for shaders
 
 ### V0.5 — Editor (remaining — in salai repo)

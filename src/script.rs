@@ -114,16 +114,60 @@ pub struct ScriptEngine {
     inbox: Vec<ScriptMessage>,
     /// Number of scripts executed this frame.
     exec_count: u64,
+    /// Kavach WASM backend (if scripting feature enabled).
+    #[cfg(feature = "scripting")]
+    wasm: Option<kavach::backend::wasm::WasmBackend>,
 }
 
 impl ScriptEngine {
     pub fn new(config: ScriptConfig) -> Self {
+        #[cfg(feature = "scripting")]
+        let wasm = {
+            let sandbox_config = kavach::SandboxConfig::builder()
+                .backend(kavach::Backend::Wasm)
+                .timeout_ms(config.timeout_ms)
+                .build();
+            kavach::backend::wasm::WasmBackend::new(&sandbox_config).ok()
+        };
+
         Self {
             config,
             outbox: Vec::new(),
             inbox: Vec::new(),
             exec_count: 0,
+            #[cfg(feature = "scripting")]
+            wasm,
         }
+    }
+
+    /// Check if the WASM backend is available.
+    pub fn wasm_available(&self) -> bool {
+        #[cfg(feature = "scripting")]
+        {
+            self.wasm.is_some()
+        }
+        #[cfg(not(feature = "scripting"))]
+        {
+            false
+        }
+    }
+
+    /// Execute a WASM file and return the result.
+    /// Returns None if scripting feature is disabled or WASM backend unavailable.
+    #[cfg(feature = "scripting")]
+    pub fn exec_wasm(&self, wasm_path: &str) -> Option<kavach::ExecResult> {
+        use kavach::backend::SandboxBackend;
+
+        let backend = self.wasm.as_ref()?;
+        let policy = kavach::SandboxPolicy::minimal();
+
+        // Use a minimal tokio runtime for the async call
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .ok()?;
+
+        rt.block_on(backend.exec(wasm_path, &policy)).ok()
     }
 
     /// Send a message to a script.
@@ -174,7 +218,12 @@ impl Default for ScriptEngine {
 }
 
 /// Collect all entities with enabled scripts and run them.
-/// This is a synchronous stub — actual WASM execution would be async via kavach.
+///
+/// With `scripting` feature: executes WASM modules via kavach for entities
+/// that have a `.wasm` source file. Falls back to message-based state update
+/// for entities without WASM files.
+///
+/// Without `scripting` feature: delivers messages to script state directly.
 pub fn run_scripts(world: &mut World) {
     let Some(engine) = world.get_resource_mut::<ScriptEngine>() else {
         return;
@@ -184,19 +233,47 @@ pub fn run_scripts(world: &mut World) {
 
     // Process inbound messages — update script state
     for msg in &messages {
-        if let Some(target_id) = msg.target {
-            // Reconstruct entity from full u64 id (preserves generation)
-            let target = Entity::from_id(target_id);
-            if let Some(script) = world.get_component_mut::<Script>(target)
-                && script.enabled
-            {
-                // In real impl: pass message to WASM module
-                // For now: store message in script state
-                script.state = msg.payload.clone();
+        let Some(target_id) = msg.target else {
+            continue;
+        };
+        let target = Entity::from_id(target_id);
+
+        // Read script info without holding a mutable borrow
+        let script_info = world
+            .get_component::<Script>(target)
+            .map(|s| (s.enabled, s.source.clone()));
+        let Some((enabled, source)) = script_info else {
+            continue;
+        };
+        if !enabled {
+            continue;
+        }
+
+        // Try WASM execution for .wasm sources
+        #[cfg(feature = "scripting")]
+        if source.ends_with(".wasm") {
+            let wasm_result = world
+                .get_resource::<ScriptEngine>()
+                .and_then(|e| e.exec_wasm(&source));
+            if let Some(result) = wasm_result {
+                if let Some(script) = world.get_component_mut::<Script>(target)
+                    && !result.stdout.is_empty()
+                {
+                    script.state = result.stdout;
+                }
                 if let Some(engine) = world.get_resource_mut::<ScriptEngine>() {
                     engine.record_exec();
                 }
+                continue;
             }
+        }
+
+        // Fallback: store message payload as script state
+        if let Some(script) = world.get_component_mut::<Script>(target) {
+            script.state = msg.payload.clone();
+        }
+        if let Some(engine) = world.get_resource_mut::<ScriptEngine>() {
+            engine.record_exec();
         }
     }
 }
@@ -494,5 +571,48 @@ mod tests {
         let json = serde_json::to_string(&cfg).unwrap();
         let decoded: ScriptConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded.timeout_ms, 16);
+    }
+
+    #[cfg(feature = "scripting")]
+    #[test]
+    fn wasm_backend_available() {
+        let engine = ScriptEngine::default();
+        assert!(engine.wasm_available());
+    }
+
+    #[cfg(not(feature = "scripting"))]
+    #[test]
+    fn wasm_backend_unavailable_without_feature() {
+        let engine = ScriptEngine::default();
+        assert!(!engine.wasm_available());
+    }
+
+    #[cfg(feature = "scripting")]
+    #[test]
+    fn exec_wasm_nonexistent_file() {
+        let engine = ScriptEngine::default();
+        let result = engine.exec_wasm("/nonexistent/script.wasm");
+        // Should return None (execution fails gracefully)
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn run_scripts_non_wasm_source_still_works() {
+        let mut world = World::new();
+        let mut engine = ScriptEngine::default();
+
+        let entity = world.spawn();
+        // Source is not a .wasm file — fallback to message state
+        world
+            .insert_component(entity, Script::new("logic.lua").with_state("initial"))
+            .unwrap();
+
+        engine.send(ScriptMessage::new("update", "new_state").to_entity(entity));
+
+        world.insert_resource(engine);
+        run_scripts(&mut world);
+
+        let script = world.get_component::<Script>(entity).unwrap();
+        assert_eq!(script.state, "new_state");
     }
 }
