@@ -22,7 +22,8 @@ rendering = ["dep:soorat"]
 scripting = ["dep:kavach", "dep:tokio"]
 multiplayer = ["dep:majra"]
 personality = ["dep:bhava"]
-full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality"]
+navigation = ["dep:raasta"]
+full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation"]
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
@@ -56,6 +57,9 @@ bhava = { version = "0.23", optional = true }
 
 # Multiplayer (optional)
 majra = { version = "0.22", optional = true }
+
+# Navigation (optional)
+raasta = { path = "../raasta", optional = true }
 
 # Rendering (optional)
 soorat = { path = "../soorat", default-features = false, optional = true }

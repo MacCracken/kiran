@@ -71,13 +71,15 @@ FrameProfiler, AssetRegistry, examples, documentation, first-party standards com
 
 - [ ] **Parallel system execution** — concurrent systems within a stage when read/write sets don't overlap
 - [ ] **System ordering constraints** — enforce `before`/`after` dependencies in scheduler (trait API exists, scheduler not yet using it)
-- [ ] **Animation state machine** — blend trees, state transitions, not just raw clips
+- [ ] **Animation state machine** — blend trees, state transitions, not just raw clips (salai editor panels ready)
 - [ ] **Navigation / pathfinding** — integrate `raasta` crate (grid A*, navmesh, flow fields, steering)
 - [ ] **Async asset loading** — background loading with completion callbacks
 - [ ] **Asset preprocessing** — compress textures, optimize meshes at build time
-- [ ] **Instanced rendering** — draw thousands of identical meshes efficiently (soorat has InstanceBuffer)
-- [ ] **GPU particle rendering** — render impetus particles on GPU
-- [ ] **Multi-pass rendering** — render graph or multi-pass abstraction for deferred shading
+
+#### Completed by soorat (removed from kiran roadmap)
+- Instanced rendering — `InstanceBuffer` + `InstanceData` in soorat
+- GPU particle rendering — moved to soorat roadmap
+- Multi-pass rendering / render graph — moved to soorat roadmap
 
 ### P3 — Future
 

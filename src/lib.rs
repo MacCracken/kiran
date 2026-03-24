@@ -26,12 +26,16 @@ pub mod gpu;
 #[cfg(feature = "multiplayer")]
 pub mod net;
 
+pub mod animation;
 pub mod asset;
 pub mod gizmos;
 pub mod profiler;
 pub mod reload;
 pub mod script;
 pub mod state;
+
+#[cfg(feature = "navigation")]
+pub mod nav;
 
 // Re-export key types at crate root
 pub use world::{

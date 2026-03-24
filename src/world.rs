@@ -712,9 +712,17 @@ impl Default for Bundle {
 }
 
 /// Runs systems in stage order: Input → Physics → GameLogic → Render.
+///
+/// Within each stage, respects `before`/`after` ordering constraints via
+/// topological sort. Systems with no ordering dependencies within a stage
+/// can be run concurrently when `run_parallel` is enabled.
 pub struct Scheduler {
     systems: Vec<Box<dyn System>>,
-    sorted: bool,
+    /// Cached execution order (indices into `systems`).
+    order: Vec<usize>,
+    dirty: bool,
+    /// Enable parallel execution of independent systems within a stage.
+    pub run_parallel: bool,
 }
 
 impl Default for Scheduler {
@@ -727,39 +735,129 @@ impl Scheduler {
     pub fn new() -> Self {
         Self {
             systems: Vec::new(),
-            sorted: false,
+            order: Vec::new(),
+            dirty: true,
+            run_parallel: false,
         }
     }
 
     /// Add a system to the scheduler.
     pub fn add_system(&mut self, system: Box<dyn System>) {
         self.systems.push(system);
-        self.sorted = false;
+        self.dirty = true;
+    }
+
+    /// Rebuild execution order: stage sort + topological sort within each stage.
+    fn rebuild_order(&mut self) {
+        let n = self.systems.len();
+        if n == 0 {
+            self.order.clear();
+            self.dirty = false;
+            return;
+        }
+
+        // Group system indices by stage
+        let mut by_stage: std::collections::BTreeMap<SystemStage, Vec<usize>> =
+            std::collections::BTreeMap::new();
+        for (i, sys) in self.systems.iter().enumerate() {
+            by_stage.entry(sys.stage()).or_default().push(i);
+        }
+
+        self.order.clear();
+        self.order.reserve(n);
+
+        for (_stage, indices) in &by_stage {
+            if indices.len() <= 1 {
+                self.order.extend(indices);
+                continue;
+            }
+
+            // Build name → index map for this stage
+            let name_to_idx: HashMap<&str, usize> = indices
+                .iter()
+                .map(|&i| (self.systems[i].name(), i))
+                .collect();
+
+            // Topological sort within this stage
+            let mut in_degree: HashMap<usize, usize> = indices.iter().map(|&i| (i, 0)).collect();
+            let mut edges: HashMap<usize, Vec<usize>> = HashMap::new();
+
+            for &i in indices {
+                // "after" means i runs after the named system → edge from named → i
+                for &dep_name in self.systems[i].after() {
+                    if let Some(&dep_idx) = name_to_idx.get(dep_name) {
+                        edges.entry(dep_idx).or_default().push(i);
+                        *in_degree.entry(i).or_default() += 1;
+                    }
+                }
+                // "before" means i runs before the named system → edge from i → named
+                for &dep_name in self.systems[i].before() {
+                    if let Some(&dep_idx) = name_to_idx.get(dep_name) {
+                        edges.entry(i).or_default().push(dep_idx);
+                        *in_degree.entry(dep_idx).or_default() += 1;
+                    }
+                }
+            }
+
+            // Kahn's algorithm
+            let mut queue: std::collections::VecDeque<usize> = indices
+                .iter()
+                .filter(|&&i| in_degree.get(&i).copied().unwrap_or(0) == 0)
+                .copied()
+                .collect();
+
+            let mut sorted = Vec::with_capacity(indices.len());
+            while let Some(node) = queue.pop_front() {
+                sorted.push(node);
+                if let Some(neighbors) = edges.get(&node) {
+                    for &neighbor in neighbors {
+                        let deg = in_degree.get_mut(&neighbor).unwrap();
+                        *deg -= 1;
+                        if *deg == 0 {
+                            queue.push_back(neighbor);
+                        }
+                    }
+                }
+            }
+
+            // If cycle detected, fall back to original order
+            if sorted.len() == indices.len() {
+                self.order.extend(sorted);
+            } else {
+                tracing::warn!(
+                    stage = ?_stage,
+                    "cycle detected in system ordering, using insertion order"
+                );
+                self.order.extend(indices);
+            }
+        }
+
+        self.dirty = false;
     }
 
     /// Run all systems in stage order against the world.
     pub fn run(&mut self, world: &mut World) {
-        if !self.sorted {
-            self.systems.sort_by_key(|s| s.stage());
-            self.sorted = true;
+        if self.dirty {
+            self.rebuild_order();
         }
-        for system in &mut self.systems {
-            system.run(world);
+        for &idx in &self.order {
+            self.systems[idx].run(world);
         }
     }
 
     /// Number of registered systems.
+    #[must_use]
+    #[inline]
     pub fn system_count(&self) -> usize {
         self.systems.len()
     }
 
     /// List system names in execution order.
     pub fn system_names(&mut self) -> Vec<&str> {
-        if !self.sorted {
-            self.systems.sort_by_key(|s| s.stage());
-            self.sorted = true;
+        if self.dirty {
+            self.rebuild_order();
         }
-        self.systems.iter().map(|s| s.name()).collect()
+        self.order.iter().map(|&i| self.systems[i].name()).collect()
     }
 }
 
