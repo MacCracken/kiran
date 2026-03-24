@@ -20,6 +20,9 @@ pub mod physics;
 #[cfg(feature = "rendering")]
 pub mod gpu;
 
+#[cfg(feature = "multiplayer")]
+pub mod net;
+
 pub mod reload;
 pub mod script;
 

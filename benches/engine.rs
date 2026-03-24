@@ -743,6 +743,119 @@ fn bench_soorat(c: &mut Criterion) {
 #[cfg(not(feature = "rendering"))]
 fn bench_soorat(_c: &mut Criterion) {}
 
+// ---------------------------------------------------------------------------
+// Multiplayer
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "multiplayer")]
+fn bench_net(c: &mut Criterion) {
+    use kiran::net::{
+        EntityState, NetMessage, NetState, StateSnapshot, apply_snapshot, build_delta,
+        build_snapshot,
+    };
+
+    let mut group = c.benchmark_group("net");
+
+    group.bench_function("build_snapshot_100", |b| {
+        let mut world = World::new();
+        let mut entities = Vec::new();
+        for i in 0..100 {
+            let e = world.spawn();
+            world
+                .insert_component(
+                    e,
+                    kiran::scene::Position(hisab::Vec3::new(i as f32, 0.0, 0.0)),
+                )
+                .unwrap();
+            entities.push(e);
+        }
+        b.iter(|| build_snapshot(black_box(&world), 1, black_box(&entities)))
+    });
+
+    group.bench_function("build_delta_100", |b| {
+        let old = StateSnapshot {
+            tick: 1,
+            entities: (0..100)
+                .map(|i| EntityState {
+                    entity_id: i,
+                    position: [i as f32, 0.0, 0.0],
+                    owner: None,
+                })
+                .collect(),
+        };
+        let new = StateSnapshot {
+            tick: 2,
+            entities: (0..100)
+                .map(|i| EntityState {
+                    entity_id: i,
+                    position: [i as f32 + if i % 10 == 0 { 1.0 } else { 0.0 }, 0.0, 0.0],
+                    owner: None,
+                })
+                .collect(),
+        };
+        b.iter(|| build_delta(black_box(&old), black_box(&new)))
+    });
+
+    group.bench_function("apply_snapshot_100", |b| {
+        let mut world = World::new();
+        let mut entity_ids = Vec::new();
+        for _ in 0..100 {
+            let e = world.spawn();
+            world
+                .insert_component(e, kiran::scene::Position(hisab::Vec3::ZERO))
+                .unwrap();
+            entity_ids.push(e.id());
+        }
+        let snapshot = StateSnapshot {
+            tick: 5,
+            entities: entity_ids
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| EntityState {
+                    entity_id: id,
+                    position: [i as f32 * 10.0, 0.0, 0.0],
+                    owner: None,
+                })
+                .collect(),
+        };
+        b.iter(|| apply_snapshot(black_box(&mut world), black_box(&snapshot)))
+    });
+
+    group.bench_function("snapshot_serde_100", |b| {
+        let snapshot = StateSnapshot {
+            tick: 42,
+            entities: (0..100)
+                .map(|i| EntityState {
+                    entity_id: i,
+                    position: [i as f32, 0.0, 0.0],
+                    owner: None,
+                })
+                .collect(),
+        };
+        b.iter(|| {
+            let json = serde_json::to_string(black_box(&snapshot)).unwrap();
+            let _: StateSnapshot = serde_json::from_str(black_box(&json)).unwrap();
+        })
+    });
+
+    group.bench_function("net_state_messaging", |b| {
+        let mut state = NetState::server("bench");
+        b.iter(|| {
+            for _ in 0..100 {
+                state.send(NetMessage::PlayerJoin {
+                    node_id: black_box("p1".into()),
+                });
+            }
+            state.drain_outbox();
+        })
+    });
+
+    group.finish();
+}
+
+#[cfg(not(feature = "multiplayer"))]
+fn bench_net(_c: &mut Criterion) {}
+
 criterion_group!(
     benches,
     bench_world,
@@ -758,5 +871,6 @@ criterion_group!(
     bench_reload,
     bench_script,
     bench_soorat,
+    bench_net,
 );
 criterion_main!(benches);

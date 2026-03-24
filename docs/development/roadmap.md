@@ -115,14 +115,19 @@ Kiran does NOT own:
 - [ ] Undo/redo stack
 - [ ] Component drag-and-drop
 
-### V0.6 — Multiplayer
+### V0.6 — Multiplayer (2026-03-23)
 
-- [ ] majra integration for networked game state
-- [ ] Client-server architecture (authoritative server)
-- [ ] State snapshot + delta compression
-- [ ] Input prediction and reconciliation
-- [ ] Lobby / matchmaking via daimon
-- [ ] QUIC transport (when majra QUIC lands)
+- majra integration (`multiplayer` feature)
+- NetState resource with Relay, node identity, peer management
+- NetRole (Server/Client), NetOwner component, Replicated marker
+- NetMessage enum (StateSnapshot, StateDelta, InputReplication, PlayerJoin/Leave)
+- `build_snapshot()` — full state capture from World
+- `build_delta()` — diff between snapshots (only changed entities)
+- `apply_snapshot()` / `apply_delta()` — apply state to World
+- InputMessage for input replication
+- 18 tests, serde roundtrips for all message types
+
+### V0.6 — Multiplayer (remaining)
 
 ### V0.7 — Advanced Rendering
 

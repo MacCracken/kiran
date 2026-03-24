@@ -5,108 +5,108 @@ Three-point tracking: **baseline** (first run) / **previous** / **latest**
 | Point | Date | Commit |
 |-------|------|--------|
 | Baseline | 2026-03-23T08:26:15Z | `38d5f28` |
-| Previous | 2026-03-24T01:58:43Z | `cfbe3ef` |
-| Latest | 2026-03-24T02:19:06Z | `db1bd95` |
+| Previous | 2026-03-24T02:19:06Z | `db1bd95` |
+| Latest | 2026-03-24T02:33:02Z | `e0cbe54` |
 
 ## world
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `spawn_entity` | 4.95 ns | 4.78 ns | 4.60 ns |
-| `spawn_despawn` | 5.29 ns | 5.66 ns | 5.40 ns |
-| `insert_component` | 50.16 ns | 32.28 ns | 29.47 ns |
-| `get_component` | 33.32 ns | 14.10 ns | 13.85 ns |
-| `has_component` | — | 12.15 ns | 11.84 ns |
-| `remove_component` | — | 50.38 ns | 47.70 ns |
-| `entity_count` | — | 241.70 ps | 236.10 ps |
-| `spawn_100_entities` | 11.30 µs | 5.06 µs | 4.96 µs |
-| `despawn_with_components` | — | 4.66 µs | 4.73 µs |
-| `iterate_components` | — | 13.34 µs | 12.98 µs |
+| `spawn_entity` | 4.95 ns | 4.60 ns | 4.62 ns |
+| `spawn_despawn` | 5.29 ns | 5.40 ns | 5.22 ns |
+| `insert_component` | 50.16 ns | 29.47 ns | 29.54 ns |
+| `get_component` | 33.32 ns | 13.85 ns | 13.75 ns |
+| `has_component` | — | 11.84 ns | 11.69 ns |
+| `remove_component` | — | 47.70 ns | 50.35 ns |
+| `entity_count` | — | 236.10 ps | 240.70 ps |
+| `spawn_100_entities` | 11.30 µs | 4.96 µs | 4.98 µs |
+| `despawn_with_components` | — | 4.73 µs | 4.58 µs |
+| `iterate_components` | — | 12.98 µs | 13.16 µs |
 
 ## scene
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `load_10_entities` | 23.40 µs | 21.64 µs | 21.81 µs |
-| `load_100_entities` | 229.36 µs | 218.29 µs | 218.24 µs |
-| `spawn_10_entities` | 1.94 µs | 1.28 µs | 1.28 µs |
-| `spawn_100_entities` | 22.35 µs | 14.18 µs | 13.73 µs |
-| `scene_serialize` | — | 183.61 µs | 179.23 µs |
+| `load_10_entities` | 23.40 µs | 21.81 µs | 21.67 µs |
+| `load_100_entities` | 229.36 µs | 218.24 µs | 213.06 µs |
+| `spawn_10_entities` | 1.94 µs | 1.28 µs | 1.35 µs |
+| `spawn_100_entities` | 22.35 µs | 13.73 µs | 13.87 µs |
+| `scene_serialize` | — | 179.23 µs | 179.22 µs |
 
 ## input
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `process_key_event` | 56.08 ns | 54.41 ns | 50.91 ns |
-| `query_key_state` | 27.38 ns | 23.98 ns | 23.13 ns |
-| `clear_frame` | 1.95 ns | 2.52 ns | 2.16 ns |
-| `process_10_keys` | — | 634.47 ns | 592.04 ns |
-| `mouse_button_edge` | — | 88.15 ns | 83.88 ns |
+| `process_key_event` | 56.08 ns | 50.91 ns | 84.36 ns |
+| `query_key_state` | 27.38 ns | 23.13 ns | 32.59 ns |
+| `clear_frame` | 1.95 ns | 2.16 ns | 3.09 ns |
+| `process_10_keys` | — | 592.04 ns | 658.83 ns |
+| `mouse_button_edge` | — | 83.88 ns | 92.28 ns |
 
 ## render
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `camera_view_projection` | 30.00 ns | 26.59 ns | 26.49 ns |
-| `null_renderer_frame` | 10.30 ns | 10.06 ns | 9.45 ns |
-| `orbit_controller_apply` | — | 961.60 ps | 947.40 ps |
-| `fly_controller_move` | — | 15.58 ns | 14.26 ns |
-| `follow_controller` | — | 3.85 ns | 3.59 ns |
-| `null_renderer_10_commands` | — | 74.15 ns | 69.16 ns |
+| `camera_view_projection` | 30.00 ns | 26.49 ns | 29.33 ns |
+| `null_renderer_frame` | 10.30 ns | 9.45 ns | 9.91 ns |
+| `orbit_controller_apply` | — | 947.40 ps | 982.80 ps |
+| `fly_controller_move` | — | 14.26 ns | 14.73 ns |
+| `follow_controller` | — | 3.59 ns | 3.84 ns |
+| `null_renderer_10_commands` | — | 69.16 ns | 74.07 ns |
 
 ## clock
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `tick` | 769.60 ps | 754.10 ps | 708.00 ps |
-| `consume_fixed` | 1.75 ns | 1.74 ns | 1.64 ns |
+| `tick` | 769.60 ps | 708.00 ps | 760.60 ps |
+| `consume_fixed` | 1.75 ns | 1.64 ns | 1.74 ns |
 
 ## events
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `publish_100` | 4.17 µs | 3.88 µs | 3.79 µs |
-| `publish_drain_100` | 4.39 µs | 3.99 µs | 3.72 µs |
-| `multi_type_publish_drain` | — | 4.32 µs | 3.91 µs |
+| `publish_100` | 4.17 µs | 3.79 µs | 4.19 µs |
+| `publish_drain_100` | 4.39 µs | 3.72 µs | 4.11 µs |
+| `multi_type_publish_drain` | — | 3.91 µs | 4.45 µs |
 
 ## game_loop
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `tick_10_entities` | — | 32.04 ns | 27.39 ns |
+| `tick_10_entities` | — | 27.39 ns | 30.60 ns |
 
 ## scheduler
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `run_4_systems` | — | 7.37 ns | 7.11 ns |
-| `run_10_systems` | — | 14.34 ns | 15.71 ns |
+| `run_4_systems` | — | 7.11 ns | 8.18 ns |
+| `run_10_systems` | — | 15.71 ns | 17.53 ns |
 
 ## hierarchy
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `spawn_10_with_children` | — | 3.77 µs | 3.71 µs |
+| `spawn_10_with_children` | — | 3.71 µs | 4.03 µs |
 
 ## resources
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `get_resource` | — | 13.36 ns | 12.12 ns |
-| `get_resource_mut` | — | 13.66 ns | 12.27 ns |
+| `get_resource` | — | 12.12 ns | 13.81 ns |
+| `get_resource_mut` | — | 12.27 ns | 13.19 ns |
 
 ## reload
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `diff_update_10` | — | 4.44 µs | 3.93 µs |
+| `diff_update_10` | — | 3.93 µs | 4.41 µs |
 
 ## script
 
 | Benchmark | Baseline | Previous | Latest |
 |-----------|----------|----------|--------|
-| `send_100_messages` | — | 9.86 µs | 8.31 µs |
-| `run_10_scripted_entities` | — | 876.97 ns | 851.96 ns |
+| `send_100_messages` | — | 8.31 µs | 8.40 µs |
+| `run_10_scripted_entities` | — | 851.96 ns | 912.66 ns |
 
 ---
 

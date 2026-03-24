@@ -248,6 +248,7 @@ pub fn run_scripts(world: &mut World) {
         let script_info = world
             .get_component::<Script>(target)
             .map(|s| (s.enabled, s.source.ends_with(".wasm"), s.source.clone()));
+        #[allow(unused_variables)]
         let Some((enabled, is_wasm, source)) = script_info else {
             continue;
         };
