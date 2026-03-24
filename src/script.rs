@@ -117,6 +117,9 @@ pub struct ScriptEngine {
     /// Kavach WASM backend (if scripting feature enabled).
     #[cfg(feature = "scripting")]
     wasm: Option<kavach::backend::wasm::WasmBackend>,
+    /// Reusable tokio runtime for async kavach calls (created once).
+    #[cfg(feature = "scripting")]
+    rt: Option<tokio::runtime::Runtime>,
 }
 
 impl ScriptEngine {
@@ -130,6 +133,12 @@ impl ScriptEngine {
             kavach::backend::wasm::WasmBackend::new(&sandbox_config).ok()
         };
 
+        #[cfg(feature = "scripting")]
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .ok();
+
         Self {
             config,
             outbox: Vec::new(),
@@ -137,6 +146,8 @@ impl ScriptEngine {
             exec_count: 0,
             #[cfg(feature = "scripting")]
             wasm,
+            #[cfg(feature = "scripting")]
+            rt,
         }
     }
 
@@ -159,13 +170,8 @@ impl ScriptEngine {
         use kavach::backend::SandboxBackend;
 
         let backend = self.wasm.as_ref()?;
+        let rt = self.rt.as_ref()?;
         let policy = kavach::SandboxPolicy::minimal();
-
-        // Use a minimal tokio runtime for the async call
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .ok()?;
 
         rt.block_on(backend.exec(wasm_path, &policy)).ok()
     }
@@ -241,8 +247,8 @@ pub fn run_scripts(world: &mut World) {
         // Read script info without holding a mutable borrow
         let script_info = world
             .get_component::<Script>(target)
-            .map(|s| (s.enabled, s.source.clone()));
-        let Some((enabled, source)) = script_info else {
+            .map(|s| (s.enabled, s.source.ends_with(".wasm"), s.source.clone()));
+        let Some((enabled, is_wasm, source)) = script_info else {
             continue;
         };
         if !enabled {
@@ -251,7 +257,7 @@ pub fn run_scripts(world: &mut World) {
 
         // Try WASM execution for .wasm sources
         #[cfg(feature = "scripting")]
-        if source.ends_with(".wasm") {
+        if is_wasm {
             let wasm_result = world
                 .get_resource::<ScriptEngine>()
                 .and_then(|e| e.exec_wasm(&source));
@@ -614,5 +620,113 @@ mod tests {
 
         let script = world.get_component::<Script>(entity).unwrap();
         assert_eq!(script.state, "new_state");
+    }
+
+    #[test]
+    fn custom_script_config() {
+        let config = ScriptConfig {
+            timeout_ms: 100,
+            max_memory: 32 * 1024 * 1024,
+        };
+        let engine = ScriptEngine::new(config);
+        assert_eq!(engine.config().timeout_ms, 100);
+        assert_eq!(engine.config().max_memory, 32 * 1024 * 1024);
+    }
+
+    #[test]
+    fn mixed_wasm_and_non_wasm_entities() {
+        let mut world = World::new();
+        let mut engine = ScriptEngine::default();
+
+        let e_wasm = world.spawn();
+        world
+            .insert_component(e_wasm, Script::new("game.wasm").with_state("wasm_init"))
+            .unwrap();
+
+        let e_lua = world.spawn();
+        world
+            .insert_component(e_lua, Script::new("game.lua").with_state("lua_init"))
+            .unwrap();
+
+        // Send messages to both
+        engine.send(ScriptMessage::new("tick", "wasm_data").to_entity(e_wasm));
+        engine.send(ScriptMessage::new("tick", "lua_data").to_entity(e_lua));
+
+        world.insert_resource(engine);
+        run_scripts(&mut world);
+
+        // Non-wasm entity gets message payload
+        let lua_script = world.get_component::<Script>(e_lua).unwrap();
+        assert_eq!(lua_script.state, "lua_data");
+
+        // WASM entity: exec_wasm fails (no real file) → falls back to message state
+        let wasm_script = world.get_component::<Script>(e_wasm).unwrap();
+        assert_eq!(wasm_script.state, "wasm_data");
+    }
+
+    #[test]
+    fn run_scripts_10_entities() {
+        let mut world = World::new();
+        let mut engine = ScriptEngine::default();
+
+        let mut entities = Vec::new();
+        for i in 0..10 {
+            let e = world.spawn();
+            world
+                .insert_component(e, Script::new(format!("s{i}.lua")))
+                .unwrap();
+            engine.send(ScriptMessage::new("tick", format!("data_{i}")).to_entity(e));
+            entities.push(e);
+        }
+
+        world.insert_resource(engine);
+        run_scripts(&mut world);
+
+        for (i, &e) in entities.iter().enumerate() {
+            let script = world.get_component::<Script>(e).unwrap();
+            assert_eq!(script.state, format!("data_{i}"));
+        }
+
+        let engine = world.get_resource::<ScriptEngine>().unwrap();
+        assert_eq!(engine.exec_count(), 10);
+    }
+
+    #[test]
+    fn run_scripts_disabled_wasm_entity_skipped() {
+        let mut world = World::new();
+        let mut engine = ScriptEngine::default();
+
+        let entity = world.spawn();
+        world
+            .insert_component(
+                entity,
+                Script::new("game.wasm").disabled().with_state("unchanged"),
+            )
+            .unwrap();
+
+        engine.send(ScriptMessage::new("tick", "should_not_apply").to_entity(entity));
+
+        world.insert_resource(engine);
+        run_scripts(&mut world);
+
+        let script = world.get_component::<Script>(entity).unwrap();
+        assert_eq!(script.state, "unchanged");
+    }
+
+    #[test]
+    fn script_engine_outbox_flow() {
+        let mut engine = ScriptEngine::default();
+
+        // Simulate script producing output messages
+        engine.push_outbox(ScriptMessage::new("spawn_bullet", r#"{"x": 10}"#));
+        engine.push_outbox(ScriptMessage::new("play_sound", "explosion.wav"));
+
+        let outbox = engine.drain_outbox();
+        assert_eq!(outbox.len(), 2);
+        assert_eq!(outbox[0].kind, "spawn_bullet");
+        assert_eq!(outbox[1].kind, "play_sound");
+
+        // Outbox drained
+        assert!(engine.drain_outbox().is_empty());
     }
 }
