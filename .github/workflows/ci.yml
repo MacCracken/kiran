@@ -46,13 +46,16 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            features: --all-features
           - os: macos-latest
+            # kavach/wasmtime doesn't build on macOS ARM — skip scripting
+            features: --features ai,audio,physics,rendering,multiplayer,personality,navigation,fluids,acoustics
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
+      - run: cargo test ${{ matrix.features }}
       - run: cargo test --doc
   msrv:
     name: MSRV (1.85)
