@@ -28,7 +28,7 @@ full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "pers
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
-hisab = "0.22"
+hisab = "1.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "0.8"
@@ -53,7 +53,7 @@ dhvani = { version = "0.22", optional = true }
 impetus = { version = "0.23", optional = true }
 
 # Scripting (optional)
-kavach = { version = "0.22", features = ["wasm"], default-features = false, optional = true }
+kavach = { version = "1.0", features = ["wasm"], default-features = false, optional = true }
 
 # Personality (optional)
 bhava = { version = "0.23", optional = true }
