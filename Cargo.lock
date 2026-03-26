@@ -1702,6 +1702,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "hisab"
+version = "0.24.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1844ed076d16ea08622e460b2c14c1234394b6e03fd035543c0efcc04ab583e7"
+dependencies = [
+ "glam",
+ "serde",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
+name = "hisab"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fccb4f2fec90170ee6835d1a57ceda45fc4a978603e937f78a405d95e6318d89"
+dependencies = [
+ "glam",
+ "serde",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2036,8 +2060,10 @@ dependencies = [
 [[package]]
 name = "impetus"
 version = "0.23.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95702d646e9e0f8169131cbc10ba79ed1aa9da0419d605da1a2d1b5cc22e424c"
 dependencies = [
- "hisab",
+ "hisab 0.22.4",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -2233,14 +2259,19 @@ dependencies = [
 
 [[package]]
 name = "kavach"
-version = "0.23.3"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f874dcd308918d794337625bbe7d8983bd1bb2eca8d717fdd6b3b3bc47300a"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "clap",
+ "hmac",
+ "libc",
  "serde",
  "serde_json",
+ "sha2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2276,7 +2307,7 @@ dependencies = [
  "criterion",
  "crossbeam-channel",
  "dhvani",
- "hisab",
+ "hisab 1.1.0",
  "hoosh",
  "impetus",
  "kavach",
@@ -3154,9 +3185,11 @@ dependencies = [
 
 [[package]]
 name = "pravash"
-version = "0.2.0"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db94213ec1ba621847a2c83e62a653f8f1edfaa7138ffd2de2b80289e6714d8c"
 dependencies = [
- "hisab",
+ "hisab 1.1.0",
  "serde",
  "thiserror 2.0.18",
  "tracing",
@@ -3353,12 +3386,12 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "raasta"
-version = "0.1.0"
+version = "0.24.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7627e3b0e54cecc198f4bae1f143af893b803ab27293005cb9dda62cae5a9c81"
 dependencies = [
- "hisab",
+ "hisab 0.24.3",
  "serde",
- "thiserror 2.0.18",
- "tracing",
 ]
 
 [[package]]
@@ -4030,11 +4063,13 @@ dependencies = [
 
 [[package]]
 name = "soorat"
-version = "0.23.3"
+version = "0.24.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "141596ab55a2e25d8b933b56612cd74f6127154dc709824bc5802c1b8cd7a641"
 dependencies = [
  "bytemuck",
  "gltf",
- "hisab",
+ "hisab 0.22.4",
  "image",
  "pollster",
  "serde",
