@@ -51,7 +51,7 @@ tokio = { version = "1", features = ["full"], optional = true }
 dhvani = { version = "0.22", optional = true }
 
 # Physics (optional)
-impetus = { version = "0.23", optional = true }
+impetus = { version = "1.1", optional = true }
 
 # Scripting (optional)
 kavach = { version = "1.0.1", features = ["wasm"], default-features = false, optional = true }

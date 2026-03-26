@@ -2071,11 +2071,11 @@ dependencies = [
 
 [[package]]
 name = "impetus"
-version = "0.23.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95702d646e9e0f8169131cbc10ba79ed1aa9da0419d605da1a2d1b5cc22e424c"
+checksum = "6a5f6c3276498834c3da26b8a7aaabcab7f9ad70c7054fed8df8346c6a941d90"
 dependencies = [
- "hisab 0.22.4",
+ "hisab 1.1.0",
  "serde",
  "thiserror 2.0.18",
 ]
