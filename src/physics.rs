@@ -1036,6 +1036,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "physics-3d")]
     fn register_entity_3d_position() {
         let mut engine = PhysicsEngine::new();
         let e = test_entity(1);
@@ -1059,6 +1060,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "physics-3d")]
     fn physics_step_3d_gravity() {
         let mut world = World::new();
         world.insert_resource(PhysicsEngine::new());

@@ -49,7 +49,7 @@ jobs:
             features: --all-features
           - os: macos-latest
             # kavach/wasmtime doesn't build on macOS ARM — skip scripting
-            features: --features ai,audio,physics,rendering,multiplayer,personality,navigation,fluids,acoustics
+            features: --features ai,audio,physics,physics-3d,rendering,multiplayer,personality,navigation,fluids,acoustics
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
