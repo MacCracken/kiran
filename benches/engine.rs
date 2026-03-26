@@ -934,9 +934,14 @@ fn bench_nav(c: &mut Criterion) {
 
     group.bench_function("nav_agent_step", |b| {
         let mut agent = NavAgent::new(5.0);
-        agent.set_path(vec![[5.0, 0.0], [10.0, 5.0], [15.0, 10.0], [20.0, 15.0]]);
+        agent.set_path(vec![
+            hisab::Vec2::new(5.0, 0.0),
+            hisab::Vec2::new(10.0, 5.0),
+            hisab::Vec2::new(15.0, 10.0),
+            hisab::Vec2::new(20.0, 15.0),
+        ]);
         b.iter(|| {
-            black_box(agent.step(black_box([0.0, 0.0])));
+            black_box(agent.step(black_box(hisab::Vec2::ZERO)));
         })
     });
 

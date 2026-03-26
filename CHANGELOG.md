@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.26.3] - 2026-03-26
+
+### Added
+- **acoustics** — Goonj 1.0 integration via new `acoustics` feature flag
+  - `AcousticsEngine` resource: BVH-accelerated occlusion queries, distance attenuation, Doppler shift, atmospheric absorption
+  - `RoomAcoustics` component: room geometry/materials with cached RT60
+  - `AcousticSource` component: directivity patterns (omni, cardioid, supercardioid, tabulated)
+  - `AcousticPortal` component: frequency-dependent sound transmission through openings
+  - `WallTransmission` component: mass-law transmission loss through walls
+  - `ReverbProcessor` resource: FDN-based real-time late reverberation
+  - Re-exports: impulse response generation, ambisonics encoding (B-Format/HOA), coupled room decay, diffraction, materials
+
+### Changed
+- **deps** — Switched raasta, pravash, soorat from local path deps to crates.io versions
+- **deps** — Pinned kavach to 1.0.1 (fixes `ExternalizationGate` compile error without `process` feature)
+
 ## [0.23.3] - 2026-03-23
 
 ### Added

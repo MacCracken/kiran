@@ -6,7 +6,7 @@
 
 - **Type**: Flat crate with binary (CLI)
 - **License**: GPL-3.0
-- **Version**: 0.23.3
+- **Version**: 0.26.3
 
 ## Consumers
 

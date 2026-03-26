@@ -29,6 +29,9 @@ pub mod net;
 #[cfg(feature = "fluids")]
 pub mod fluids;
 
+#[cfg(feature = "acoustics")]
+pub mod acoustics;
+
 pub mod animation;
 pub mod archetype;
 pub mod asset;

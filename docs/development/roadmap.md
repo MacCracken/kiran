@@ -18,16 +18,16 @@
 
 ## Goonj Integration (acoustics engine)
 
-- [ ] **Real-time occlusion queries**: Use `goonj::integration::kiran::OcclusionEngine` for source-listener occlusion with BVH-accelerated wall checks and per-band attenuation
-- [ ] **Audio propagation**: Use `goonj::propagation` for distance attenuation, atmospheric absorption, and Doppler shift in game audio
-- [ ] **Room acoustics**: Use `goonj::impulse::generate_ir()` for environment-specific reverb (cave, corridor, open field)
-- [ ] **Diffraction**: Use `goonj::diffraction::edge_diffraction_loss()` and `utd_wedge_diffraction()` for sound bending around obstacles
-- [ ] **Portal propagation**: Use `goonj::portal::portal_energy_transfer()` for sound through doorways between rooms
-- [ ] **Coupled rooms**: Use `goonj::coupled::coupled_room_decay()` for multi-room reverb with double-slope decay
-- [ ] **Source directivity**: Use `goonj::directivity::DirectivityPattern` for directional sound sources (speakers, NPCs)
-- [ ] **Wall transmission**: Use `goonj::material::WallConstruction::transmission_coefficient()` for sound through walls
-- [ ] **Ambisonics**: Use `goonj::ambisonics::encode_bformat()` for spatial audio encoding in VR/XR scenes
-- [ ] **FDN reverb**: Use `goonj::fdn::Fdn` for efficient real-time late reverberation
+- [x] **Real-time occlusion queries**: `AcousticsEngine` wraps `OcclusionEngine` for source-listener occlusion with BVH-accelerated wall checks and per-band attenuation
+- [x] **Audio propagation**: Distance attenuation, atmospheric absorption, and Doppler shift via `AcousticsEngine` methods
+- [x] **Room acoustics**: `RoomAcoustics` component + `generate_ir()` re-export for environment-specific reverb
+- [x] **Diffraction**: `edge_diffraction_loss()` and `utd_wedge_diffraction()` re-exported for sound bending around obstacles
+- [x] **Portal propagation**: `AcousticPortal` component with `energy_transfer()` for sound through doorways between rooms
+- [x] **Coupled rooms**: `CoupledRooms` and `coupled_room_decay()` re-exported for multi-room reverb with double-slope decay
+- [x] **Source directivity**: `AcousticSource` component with `DirectivityPattern` for directional sound sources
+- [x] **Wall transmission**: `WallTransmission` component wrapping `WallConstruction` for sound through walls
+- [x] **Ambisonics**: `encode_bformat()` and `encode_hoa()` re-exported for spatial audio encoding
+- [x] **FDN reverb**: `ReverbProcessor` resource wrapping `Fdn` for efficient real-time late reverberation
 
 ## Future Features
 

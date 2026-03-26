@@ -1563,6 +1563,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "goonj"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db587aa763dff15117afc72c14afbd9aea71bc7dd68f3e8126e2fe5d0b3cf217"
+dependencies = [
+ "hisab 0.24.3",
+ "serde",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "gpu-alloc"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2259,9 +2271,9 @@ dependencies = [
 
 [[package]]
 name = "kavach"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94f874dcd308918d794337625bbe7d8983bd1bb2eca8d717fdd6b3b3bc47300a"
+checksum = "85a4e85fdc9039a00ae594ff58ba859afcc85f8688aa268033c7a327b5ea3d4f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2299,7 +2311,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kiran"
-version = "0.23.3"
+version = "0.26.3"
 dependencies = [
  "anyhow",
  "bhava",
@@ -2307,6 +2319,7 @@ dependencies = [
  "criterion",
  "crossbeam-channel",
  "dhvani",
+ "goonj",
  "hisab 1.1.0",
  "hoosh",
  "impetus",

@@ -10,6 +10,8 @@ pub use raasta::{
     SteerBehavior, SteerOutput, compute_steer, funnel_smooth,
 };
 
+use hisab::Vec2;
+
 use crate::world::{Entity, World};
 
 /// ECS component: a navigation agent that follows paths.
@@ -18,7 +20,7 @@ pub struct NavAgent {
     /// Maximum movement speed.
     pub max_speed: f32,
     /// Current path waypoints (world space).
-    pub path: Vec<[f32; 2]>,
+    pub path: Vec<Vec2>,
     /// Index of the next waypoint to reach.
     pub path_index: usize,
     /// Arrival threshold — how close to a waypoint before advancing.
@@ -39,7 +41,7 @@ impl NavAgent {
     }
 
     /// Set a new path for the agent to follow.
-    pub fn set_path(&mut self, waypoints: Vec<[f32; 2]>) {
+    pub fn set_path(&mut self, waypoints: Vec<Vec2>) {
         self.path = waypoints;
         self.path_index = 0;
         self.arrived = self.path.is_empty();
@@ -54,7 +56,7 @@ impl NavAgent {
 
     /// Get the current target waypoint, if any.
     #[must_use]
-    pub fn current_target(&self) -> Option<[f32; 2]> {
+    pub fn current_target(&self) -> Option<Vec2> {
         if self.arrived {
             return None;
         }
@@ -63,7 +65,7 @@ impl NavAgent {
 
     /// Advance along the path given the agent's current position.
     /// Returns the steering output (desired velocity).
-    pub fn step(&mut self, position: [f32; 2]) -> SteerOutput {
+    pub fn step(&mut self, position: Vec2) -> SteerOutput {
         if self.arrived {
             return SteerOutput::default();
         }
@@ -77,9 +79,8 @@ impl NavAgent {
                 return SteerOutput::default();
             };
 
-            let dx = target[0] - position[0];
-            let dy = target[1] - position[1];
-            let dist_sq = dx * dx + dy * dy;
+            let diff = target - position;
+            let dist_sq = diff.x * diff.x + diff.y * diff.y;
 
             if dist_sq >= radius_sq {
                 // Not yet at this waypoint — steer toward it
@@ -126,13 +127,7 @@ pub fn request_grid_path(
 ) -> bool {
     let path = grid.find_path(start, goal);
     if let Some(positions) = path {
-        let waypoints: Vec<[f32; 2]> = positions
-            .iter()
-            .map(|p| {
-                let (wx, wy) = grid.grid_to_world(*p);
-                [wx, wy]
-            })
-            .collect();
+        let waypoints: Vec<Vec2> = positions.iter().map(|p| grid.grid_to_world(*p)).collect();
 
         if let Some(agent) = world.get_component_mut::<NavAgent>(entity) {
             agent.set_path(waypoints);
@@ -161,16 +156,20 @@ mod tests {
     #[test]
     fn nav_agent_set_path() {
         let mut agent = NavAgent::new(5.0);
-        agent.set_path(vec![[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]]);
+        agent.set_path(vec![
+            Vec2::new(1.0, 0.0),
+            Vec2::new(2.0, 0.0),
+            Vec2::new(3.0, 0.0),
+        ]);
         assert!(!agent.arrived);
         assert_eq!(agent.remaining_waypoints(), 3);
-        assert_eq!(agent.current_target(), Some([1.0, 0.0]));
+        assert_eq!(agent.current_target(), Some(Vec2::new(1.0, 0.0)));
     }
 
     #[test]
     fn nav_agent_stop() {
         let mut agent = NavAgent::new(5.0);
-        agent.set_path(vec![[1.0, 0.0]]);
+        agent.set_path(vec![Vec2::new(1.0, 0.0)]);
         assert!(!agent.arrived);
         agent.stop();
         assert!(agent.arrived);
@@ -179,33 +178,33 @@ mod tests {
     #[test]
     fn nav_agent_step_toward_target() {
         let mut agent = NavAgent::new(5.0);
-        agent.set_path(vec![[10.0, 0.0]]);
-        let out = agent.step([0.0, 0.0]);
-        assert!(out.velocity[0] > 0.0);
-        assert!(out.velocity[1].abs() < 0.01);
+        agent.set_path(vec![Vec2::new(10.0, 0.0)]);
+        let out = agent.step(Vec2::ZERO);
+        assert!(out.velocity.x > 0.0);
+        assert!(out.velocity.y.abs() < 0.01);
     }
 
     #[test]
     fn nav_agent_reaches_waypoint() {
         let mut agent = NavAgent::new(5.0);
         agent.arrival_radius = 1.0;
-        agent.set_path(vec![[1.0, 0.0], [5.0, 0.0]]);
+        agent.set_path(vec![Vec2::new(1.0, 0.0), Vec2::new(5.0, 0.0)]);
 
         // Step near first waypoint
-        let out = agent.step([0.8, 0.0]);
+        let out = agent.step(Vec2::new(0.8, 0.0));
         // Should advance to second waypoint
         assert_eq!(agent.path_index, 1);
         assert!(!agent.arrived);
-        assert!(out.velocity[0] > 0.0);
+        assert!(out.velocity.x > 0.0);
     }
 
     #[test]
     fn nav_agent_arrives_at_destination() {
         let mut agent = NavAgent::new(5.0);
         agent.arrival_radius = 1.0;
-        agent.set_path(vec![[0.5, 0.0]]);
+        agent.set_path(vec![Vec2::new(0.5, 0.0)]);
 
-        let out = agent.step([0.2, 0.0]);
+        let out = agent.step(Vec2::new(0.2, 0.0));
         assert!(agent.arrived);
         assert!(out.speed() < f32::EPSILON);
     }
@@ -215,7 +214,7 @@ mod tests {
         let mut agent = NavAgent::new(5.0);
         agent.set_path(vec![]);
         assert!(agent.arrived);
-        let out = agent.step([0.0, 0.0]);
+        let out = agent.step(Vec2::ZERO);
         assert!(out.speed() < f32::EPSILON);
     }
 
@@ -272,13 +271,19 @@ mod tests {
 
     #[test]
     fn steer_reexport() {
-        let out = compute_steer(&SteerBehavior::Seek { target: [1.0, 0.0] }, [0.0, 0.0], 1.0);
+        let out = compute_steer(
+            &SteerBehavior::Seek {
+                target: Vec2::new(1.0, 0.0),
+            },
+            Vec2::ZERO,
+            1.0,
+        );
         assert!(out.speed() > 0.0);
     }
 
     #[test]
     fn smooth_reexport() {
-        let smoothed = funnel_smooth(&[[0.0, 0.0], [1.0, 1.0]]);
+        let smoothed = funnel_smooth(&[Vec2::ZERO, Vec2::new(1.0, 1.0)]);
         assert_eq!(smoothed.len(), 2);
     }
 }

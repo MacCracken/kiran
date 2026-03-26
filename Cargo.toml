@@ -1,6 +1,6 @@
 [package]
 name = "kiran"
-version = "0.23.3"
+version = "0.26.3"
 edition = "2024"
 license = "GPL-3.0"
 description = "Kiran — AI-native game engine for AGNOS"
@@ -24,7 +24,8 @@ multiplayer = ["dep:majra"]
 personality = ["dep:bhava"]
 navigation = ["dep:raasta"]
 fluids = ["dep:pravash"]
-full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation", "fluids"]
+acoustics = ["dep:goonj"]
+full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation", "fluids", "acoustics"]
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
@@ -53,13 +54,16 @@ dhvani = { version = "0.22", optional = true }
 impetus = { version = "0.23", optional = true }
 
 # Scripting (optional)
-kavach = { version = "1.0", features = ["wasm"], default-features = false, optional = true }
+kavach = { version = "1.0.1", features = ["wasm"], default-features = false, optional = true }
 
 # Personality (optional)
 bhava = { version = "0.23", optional = true }
 
 # Multiplayer (optional)
 majra = { version = "0.22", optional = true }
+
+# Acoustics (optional)
+goonj = { version = "1.0", features = ["kiran-compat"], default-features = false, optional = true }
 
 # Navigation (optional)
 raasta = { version = "0.24", optional = true }
