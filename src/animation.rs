@@ -1,8 +1,8 @@
 //! Animation state machine — blend trees and state transitions.
 //!
 //! Provides an [`AnimState`] ECS component that manages animation playback
-//! and transitions between clips. Works with soorat's [`AnimationClip`] and
-//! [`Skeleton`] types.
+//! and transitions between clips. Works with soorat's `AnimationClip` and
+//! `Skeleton` types.
 
 use serde::{Deserialize, Serialize};
 

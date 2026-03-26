@@ -1,7 +1,7 @@
 //! TOML scene format, loading, entity spawning
 //!
 //! Defines the scene file format and provides helpers to load scenes from
-//! TOML strings and spawn their entities into a [`World`](crate::World).
+//! TOML strings and spawn their entities into a [`World`].
 
 use hisab::Vec3;
 use serde::{Deserialize, Serialize};
@@ -255,7 +255,7 @@ pub struct Children(pub Vec<Entity>);
 /// Material definition attached to an entity.
 ///
 /// Data-side PBR material component. For GPU upload, convert to soorat's
-/// `MaterialUniforms` via [`to_material_uniforms()`](Material::to_material_uniforms).
+/// `MaterialUniforms` via `to_material_uniforms()`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Material {
     /// Base color as RGBA (0.0–1.0).

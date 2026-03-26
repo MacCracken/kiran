@@ -1,7 +1,7 @@
 //! Asset pipeline — registry, handles, and hot reload integration.
 //!
 //! Provides a typed asset registry that maps file paths to handles,
-//! integrates with [`FileWatcher`](crate::reload::FileWatcher) for hot reload.
+//! integrates with [`FileWatcher`] for hot reload.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

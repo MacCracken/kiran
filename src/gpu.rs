@@ -2,7 +2,7 @@
 //!
 //! Bridges soorat's GPU rendering engine with kiran's Renderer trait and ECS.
 //! Re-exports key soorat types and provides a [`SooratRenderer`] that implements
-//! kiran's [`Renderer`](crate::render::Renderer) trait.
+//! kiran's [`Renderer`] trait.
 
 pub use soorat::GpuContext;
 pub use soorat::animation::{AnimationClip, JointUniforms, Skeleton};
