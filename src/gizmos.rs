@@ -7,30 +7,51 @@
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum GizmoCommand {
+    /// Line segment between two points.
     Line {
+        /// Start point.
         a: [f32; 3],
+        /// End point.
         b: [f32; 3],
+        /// RGBA color.
         color: [f32; 4],
     },
+    /// Axis-aligned wireframe box.
     Box {
+        /// Minimum corner.
         min: [f32; 3],
+        /// Maximum corner.
         max: [f32; 3],
+        /// RGBA color.
         color: [f32; 4],
     },
+    /// Wireframe sphere.
     Sphere {
+        /// Center position.
         center: [f32; 3],
+        /// Sphere radius.
         radius: f32,
+        /// RGBA color.
         color: [f32; 4],
     },
+    /// Directional ray.
     Ray {
+        /// Ray origin.
         origin: [f32; 3],
+        /// Ray direction (unit vector).
         direction: [f32; 3],
+        /// Ray length.
         length: f32,
+        /// RGBA color.
         color: [f32; 4],
     },
+    /// Debug point (rendered as small cross).
     Point {
+        /// Point position.
         position: [f32; 3],
+        /// Visual size.
         size: f32,
+        /// RGBA color.
         color: [f32; 4],
     },
 }
@@ -43,6 +64,7 @@ pub struct Gizmos {
 }
 
 impl Gizmos {
+    /// Create an empty gizmo accumulator.
     pub fn new() -> Self {
         Self::default()
     }
@@ -95,6 +117,7 @@ impl Gizmos {
         self.commands.len()
     }
 
+    /// Returns true if no gizmo commands are pending.
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }

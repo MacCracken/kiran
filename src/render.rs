@@ -13,10 +13,15 @@ use serde::{Deserialize, Serialize};
 /// Rendering configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenderConfig {
+    /// Window width in pixels.
     pub width: u32,
+    /// Window height in pixels.
     pub height: u32,
+    /// Enable vertical sync.
     pub vsync: bool,
+    /// Run in fullscreen mode.
     pub fullscreen: bool,
+    /// Window title.
     pub title: String,
 }
 
@@ -39,12 +44,19 @@ impl Default for RenderConfig {
 /// A 3D camera with view and projection matrices.
 #[derive(Debug, Clone)]
 pub struct Camera {
+    /// World-space position.
     pub position: Vec3,
+    /// Look-at target.
     pub target: Vec3,
+    /// Up direction.
     pub up: Vec3,
+    /// Vertical field of view in radians.
     pub fov_y: f32,
+    /// Aspect ratio (width / height).
     pub aspect: f32,
+    /// Near clipping plane.
     pub near: f32,
+    /// Far clipping plane.
     pub far: f32,
 }
 
@@ -149,11 +161,14 @@ impl Default for OrthoCamera {
 /// Axis-aligned bounding box for visibility testing.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AABB {
+    /// Minimum corner.
     pub min: Vec3,
+    /// Maximum corner.
     pub max: Vec3,
 }
 
 impl AABB {
+    /// Create an AABB from min and max corners.
     pub fn new(min: Vec3, max: Vec3) -> Self {
         Self { min, max }
     }
@@ -234,13 +249,21 @@ impl AABB {
 /// Orbit camera controller — rotates around a target point.
 #[derive(Debug, Clone)]
 pub struct OrbitController {
+    /// Distance from the target.
     pub distance: f32,
+    /// Horizontal rotation in radians.
     pub yaw: f32,
+    /// Vertical rotation in radians.
     pub pitch: f32,
+    /// Point to orbit around.
     pub target: Vec3,
+    /// Lower pitch clamp.
     pub min_pitch: f32,
+    /// Upper pitch clamp.
     pub max_pitch: f32,
+    /// Minimum orbit distance.
     pub min_distance: f32,
+    /// Maximum orbit distance.
     pub max_distance: f32,
 }
 
@@ -284,8 +307,11 @@ impl OrbitController {
 /// Fly camera controller — free-look first-person movement.
 #[derive(Debug, Clone)]
 pub struct FlyController {
+    /// Movement speed in units per second.
     pub speed: f32,
+    /// Horizontal rotation in radians.
     pub yaw: f32,
+    /// Vertical rotation in radians.
     pub pitch: f32,
 }
 
@@ -334,7 +360,9 @@ impl FlyController {
 /// Follow camera controller — tracks a target position with offset.
 #[derive(Debug, Clone)]
 pub struct FollowController {
+    /// Offset from the followed target.
     pub offset: Vec3,
+    /// Smoothing factor (higher = faster catch-up).
     pub smoothing: f32,
 }
 
@@ -364,20 +392,30 @@ impl FollowController {
 /// Describes a 2D sprite to render.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpriteDesc {
+    /// Texture handle.
     pub texture_id: u64,
+    /// Horizontal position.
     pub x: f32,
+    /// Vertical position.
     pub y: f32,
+    /// Sprite width.
     pub width: f32,
+    /// Sprite height.
     pub height: f32,
+    /// Rotation in radians.
     pub rotation: f32,
+    /// Tint color as RGBA.
     pub color: [f32; 4],
 }
 
 /// Describes a 3D mesh to render.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MeshDesc {
+    /// Mesh handle.
     pub mesh_id: u64,
-    pub transform: [f32; 16], // column-major 4x4
+    /// Column-major 4x4 transform matrix.
+    pub transform: [f32; 16],
+    /// Material handle.
     pub material_id: u64,
 }
 
@@ -385,9 +423,13 @@ pub struct MeshDesc {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DrawCommand {
+    /// Clear the framebuffer with an RGBA color.
     Clear([f32; 4]),
+    /// Draw a 2D sprite.
     Sprite(SpriteDesc),
+    /// Draw a 3D mesh.
     Mesh(MeshDesc),
+    /// Update the active camera.
     SetCamera(Camera),
 }
 
@@ -420,13 +462,17 @@ pub trait Renderer: Send {
 /// A headless renderer that records draw commands for testing.
 #[derive(Debug, Default)]
 pub struct NullRenderer {
+    /// Whether `init` has been called.
     pub initialized: bool,
+    /// Total completed frames.
     pub frame_count: u64,
+    /// Commands submitted in the current/last frame.
     pub commands: Vec<DrawCommand>,
     in_frame: bool,
 }
 
 impl NullRenderer {
+    /// Create a new headless renderer.
     pub fn new() -> Self {
         Self::default()
     }

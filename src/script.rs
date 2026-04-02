@@ -26,6 +26,7 @@ pub struct Script {
 }
 
 impl Script {
+    /// Create a new enabled script from a source path.
     pub fn new(source: impl Into<String>) -> Self {
         Self {
             source: source.into(),
@@ -34,11 +35,13 @@ impl Script {
         }
     }
 
+    /// Mark this script as disabled.
     pub fn disabled(mut self) -> Self {
         self.enabled = false;
         self
     }
 
+    /// Set initial script-local state.
     pub fn with_state(mut self, state: impl Into<String>) -> Self {
         self.state = state.into();
         self
@@ -63,6 +66,7 @@ pub struct ScriptMessage {
 }
 
 impl ScriptMessage {
+    /// Create a broadcast message with the given kind and payload.
     pub fn new(kind: impl Into<String>, payload: impl Into<String>) -> Self {
         Self {
             sender: None,
@@ -72,11 +76,13 @@ impl ScriptMessage {
         }
     }
 
+    /// Set the sender entity.
     pub fn from_entity(mut self, entity: Entity) -> Self {
         self.sender = Some(entity.id());
         self
     }
 
+    /// Set the target entity.
     pub fn to_entity(mut self, entity: Entity) -> Self {
         self.target = Some(entity.id());
         self
@@ -123,6 +129,7 @@ pub struct ScriptEngine {
 }
 
 impl ScriptEngine {
+    /// Create a script engine with the given configuration.
     pub fn new(config: ScriptConfig) -> Self {
         #[cfg(feature = "scripting")]
         let wasm = {

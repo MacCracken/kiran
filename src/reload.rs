@@ -25,6 +25,7 @@ pub struct FileWatcher {
 }
 
 impl FileWatcher {
+    /// Create an empty file watcher.
     pub fn new() -> Self {
         Self::default()
     }
@@ -81,6 +82,7 @@ impl Default for SceneReloader {
 }
 
 impl SceneReloader {
+    /// Create a new scene reloader.
     pub fn new() -> Self {
         Self {
             watcher: FileWatcher::new(),
@@ -171,6 +173,7 @@ impl Default for ShaderReloader {
 }
 
 impl ShaderReloader {
+    /// Create a new shader reloader.
     pub fn new() -> Self {
         Self {
             watcher: FileWatcher::new(),

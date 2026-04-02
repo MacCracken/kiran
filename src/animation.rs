@@ -13,13 +13,18 @@ use serde::{Deserialize, Serialize};
 /// A named animation state referencing a clip by index.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimNode {
+    /// Human-readable state name.
     pub name: String,
+    /// Index into the animation clip list.
     pub clip_index: usize,
+    /// Playback speed multiplier.
     pub speed: f32,
+    /// Whether the clip loops.
     pub looping: bool,
 }
 
 impl AnimNode {
+    /// Create a looping animation node.
     #[must_use]
     pub fn new(name: impl Into<String>, clip_index: usize) -> Self {
         Self {
@@ -30,6 +35,7 @@ impl AnimNode {
         }
     }
 
+    /// Create a non-looping (one-shot) animation node.
     #[must_use]
     pub fn once(name: impl Into<String>, clip_index: usize) -> Self {
         Self {
@@ -44,7 +50,9 @@ impl AnimNode {
 /// A transition between two animation states.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnimTransition {
+    /// Source state index.
     pub from: usize,
+    /// Target state index.
     pub to: usize,
     /// Crossfade duration in seconds.
     pub duration: f32,
@@ -77,6 +85,7 @@ pub struct AnimState {
 }
 
 impl AnimState {
+    /// Create an empty animation state machine.
     #[must_use]
     pub fn new() -> Self {
         Self::default()

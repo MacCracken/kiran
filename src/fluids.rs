@@ -40,6 +40,7 @@ pub struct FluidEmitter {
 }
 
 impl FluidEmitter {
+    /// Create a new emitter for the given fluid material.
     pub fn new(material: FluidMaterial) -> Self {
         Self {
             material,
@@ -52,21 +53,25 @@ impl FluidEmitter {
         }
     }
 
+    /// Set the emission rate (particles per second).
     pub fn with_rate(mut self, rate: f32) -> Self {
         self.rate = rate;
         self
     }
 
+    /// Set the initial particle velocity.
     pub fn with_velocity(mut self, velocity: [f32; 3]) -> Self {
         self.velocity = velocity;
         self
     }
 
+    /// Set the emission spread angle in radians.
     pub fn with_spread(mut self, spread: f32) -> Self {
         self.spread = spread;
         self
     }
 
+    /// Set the maximum alive particle count.
     pub fn with_max_particles(mut self, max: usize) -> Self {
         self.max_particles = max;
         self
@@ -101,6 +106,7 @@ pub struct FluidBody {
 }
 
 impl FluidBody {
+    /// Create a fluid body with the given volume in m³.
     pub fn new(volume: f32) -> Self {
         Self {
             volume,
@@ -110,6 +116,7 @@ impl FluidBody {
         }
     }
 
+    /// Set the drag coefficient.
     pub fn with_drag(mut self, drag: f32) -> Self {
         self.drag_coefficient = drag;
         self

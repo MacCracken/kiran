@@ -78,8 +78,11 @@ impl Personality {
 /// Event that stimulates an NPC's mood.
 #[derive(Debug, Clone)]
 pub struct MoodStimulus {
+    /// Target NPC entity.
     pub entity: Entity,
+    /// Emotion to stimulate.
     pub emotion: bhava::mood::Emotion,
+    /// Stimulus strength (clamped to [-1.0, 1.0]).
     pub intensity: f32,
 }
 

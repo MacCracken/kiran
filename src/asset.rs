@@ -29,9 +29,13 @@ impl AssetHandle {
 /// Metadata about a loaded asset.
 #[derive(Debug, Clone)]
 pub struct AssetEntry {
+    /// Handle for this asset.
     pub handle: AssetHandle,
+    /// Filesystem path to the asset.
     pub path: PathBuf,
+    /// Classified type of the asset.
     pub asset_type: AssetType,
+    /// Size of the asset file in bytes.
     pub size_bytes: usize,
 }
 
@@ -39,12 +43,19 @@ pub struct AssetEntry {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum AssetType {
+    /// Image texture (png, jpg, bmp, tga).
     Texture,
+    /// Audio clip (wav, ogg, mp3, flac).
     Sound,
+    /// Scene description (toml).
     Scene,
+    /// GPU shader (wgsl, glsl, hlsl).
     Shader,
+    /// 3D model (gltf, glb, obj, fbx).
     Model,
+    /// Script module (wasm).
     Script,
+    /// Unrecognized asset type.
     Other,
 }
 
@@ -78,6 +89,7 @@ pub struct AssetRegistry {
 }
 
 impl AssetRegistry {
+    /// Create an empty asset registry.
     pub fn new() -> Self {
         Self {
             path_to_handle: HashMap::new(),
@@ -219,8 +231,11 @@ pub enum LoadStatus {
 /// An async load request — tracks background file reads.
 #[derive(Debug)]
 pub struct AsyncLoadRequest {
+    /// Handle of the asset being loaded.
     pub handle: AssetHandle,
+    /// Filesystem path of the asset.
     pub path: PathBuf,
+    /// Current load status.
     pub status: LoadStatus,
     /// The loaded bytes (populated when status == Ready).
     pub data: Option<Vec<u8>>,
@@ -243,6 +258,7 @@ impl Default for AsyncAssetLoader {
 }
 
 impl AsyncAssetLoader {
+    /// Create an empty async asset loader.
     pub fn new() -> Self {
         Self {
             requests: Vec::new(),
@@ -353,7 +369,12 @@ impl AsyncAssetLoader {
 #[non_exhaustive]
 pub enum PreprocessStep {
     /// Compress a texture to a target format.
-    CompressTexture { format: String, quality: u8 },
+    CompressTexture {
+        /// Target compression format.
+        format: String,
+        /// Compression quality (0-100).
+        quality: u8,
+    },
     /// Optimize a mesh (reorder indices for vertex cache).
     OptimizeMesh,
     /// Generate mipmaps for a texture.
@@ -361,7 +382,10 @@ pub enum PreprocessStep {
     /// Strip unused animation channels.
     StripAnimations,
     /// Custom preprocessing command.
-    Custom { command: String },
+    Custom {
+        /// Shell command to execute.
+        command: String,
+    },
 }
 
 /// An asset preprocessing pipeline — a sequence of steps applied to assets.
@@ -372,6 +396,7 @@ pub struct PreprocessPipeline {
 }
 
 impl PreprocessPipeline {
+    /// Create an empty preprocessing pipeline.
     pub fn new() -> Self {
         Self::default()
     }

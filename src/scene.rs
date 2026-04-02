@@ -144,8 +144,11 @@ pub struct Position(pub Vec3);
 /// Full transform: position + rotation + scale.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Transform {
+    /// Translation in world space.
     pub position: Vec3,
+    /// Orientation quaternion.
     pub rotation: hisab::Quat,
+    /// Non-uniform scale.
     pub scale: Vec3,
 }
 
@@ -160,6 +163,7 @@ impl Default for Transform {
 }
 
 impl Transform {
+    /// Create a transform with only a position (identity rotation, unit scale).
     pub fn from_position(position: Vec3) -> Self {
         Self {
             position,
@@ -167,11 +171,13 @@ impl Transform {
         }
     }
 
+    /// Set the rotation.
     pub fn with_rotation(mut self, rotation: hisab::Quat) -> Self {
         self.rotation = rotation;
         self
     }
 
+    /// Set the scale.
     pub fn with_scale(mut self, scale: Vec3) -> Self {
         self.scale = scale;
         self
@@ -237,6 +243,7 @@ pub struct Name(pub String);
 /// Light component attached to entities with emissive properties.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LightComponent {
+    /// Light brightness.
     pub intensity: f32,
 }
 

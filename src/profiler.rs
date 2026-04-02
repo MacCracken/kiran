@@ -9,7 +9,9 @@ use std::time::{Duration, Instant};
 /// Per-system timing data for a single frame.
 #[derive(Debug, Clone)]
 pub struct SystemTiming {
+    /// System name.
     pub name: String,
+    /// Time spent executing this system.
     pub duration: Duration,
 }
 

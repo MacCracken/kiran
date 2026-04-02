@@ -16,10 +16,15 @@ use crate::world::{Entity, EventBus, World};
 /// Rigid body component — marks an entity as physics-simulated.
 #[derive(Debug, Clone)]
 pub struct RigidBody {
+    /// Body type (dynamic, static, or kinematic).
     pub body_type: impetus::BodyType,
+    /// Linear damping coefficient.
     pub linear_damping: f64,
+    /// Angular damping coefficient.
     pub angular_damping: f64,
+    /// Whether rotation is locked.
     pub fixed_rotation: bool,
+    /// Gravity scale override (None = default).
     pub gravity_scale: Option<f64>,
 }
 
@@ -57,17 +62,20 @@ impl RigidBody {
         }
     }
 
+    /// Set linear and angular damping.
     pub fn with_damping(mut self, linear: f64, angular: f64) -> Self {
         self.linear_damping = linear;
         self.angular_damping = angular;
         self
     }
 
+    /// Lock rotation so the body cannot rotate.
     pub fn with_fixed_rotation(mut self) -> Self {
         self.fixed_rotation = true;
         self
     }
 
+    /// Override the gravity scale for this body.
     pub fn with_gravity_scale(mut self, scale: f64) -> Self {
         self.gravity_scale = Some(scale);
         self
@@ -77,16 +85,24 @@ impl RigidBody {
 /// Collider component — defines the collision shape for a physics entity.
 #[derive(Debug, Clone)]
 pub struct Collider {
+    /// Collision shape geometry.
     pub shape: impetus::ColliderShape,
+    /// Local offset from the body origin.
     pub offset: [f64; 3],
+    /// Physics material (friction, restitution).
     pub material: impetus::PhysicsMaterial,
+    /// If true, detects overlaps but does not generate contacts.
     pub is_sensor: bool,
+    /// Explicit mass override (None = computed from shape).
     pub mass: Option<f64>,
+    /// Collision layer bitmask (which layers this collider belongs to).
     pub collision_layer: u32,
+    /// Collision mask bitmask (which layers this collider interacts with).
     pub collision_mask: u32,
 }
 
 impl Collider {
+    /// Create a sphere collider with the given radius.
     pub fn ball(radius: f64) -> Self {
         Self {
             shape: impetus::ColliderShape::Ball { radius },
@@ -99,6 +115,7 @@ impl Collider {
         }
     }
 
+    /// Create a box collider from half-extents.
     pub fn cuboid(hx: f64, hy: f64, hz: f64) -> Self {
         Self {
             shape: impetus::ColliderShape::Box {
@@ -113,6 +130,7 @@ impl Collider {
         }
     }
 
+    /// Create a capsule collider from half-height and radius.
     pub fn capsule(half_height: f64, radius: f64) -> Self {
         Self {
             shape: impetus::ColliderShape::Capsule {
@@ -154,31 +172,37 @@ impl Collider {
         }
     }
 
+    /// Set the physics material.
     pub fn with_material(mut self, material: impetus::PhysicsMaterial) -> Self {
         self.material = material;
         self
     }
 
+    /// Set the local offset from the body origin.
     pub fn with_offset(mut self, offset: [f64; 3]) -> Self {
         self.offset = offset;
         self
     }
 
+    /// Mark this collider as a sensor (overlap-only, no contacts).
     pub fn sensor(mut self) -> Self {
         self.is_sensor = true;
         self
     }
 
+    /// Override the computed mass with an explicit value.
     pub fn with_mass(mut self, mass: f64) -> Self {
         self.mass = Some(mass);
         self
     }
 
+    /// Set the collision layer bitmask.
     pub fn with_layer(mut self, layer: u32) -> Self {
         self.collision_layer = layer;
         self
     }
 
+    /// Set the collision mask bitmask.
     pub fn with_mask(mut self, mask: u32) -> Self {
         self.collision_mask = mask;
         self
@@ -188,7 +212,9 @@ impl Collider {
 /// Velocity component — readable/writable linear and angular velocity.
 #[derive(Debug, Clone, Default)]
 pub struct Velocity {
+    /// Linear velocity vector.
     pub linear: [f64; 3],
+    /// Angular velocity (radians/second).
     pub angular: f64,
 }
 
@@ -199,7 +225,9 @@ pub struct Velocity {
 /// Physics position — f64 precision. Updated by the physics engine each step.
 #[derive(Debug, Clone)]
 pub struct PhysicsPosition {
+    /// World-space position.
     pub position: [f64; 3],
+    /// Rotation angle in radians.
     pub rotation: f64,
 }
 
@@ -219,6 +247,7 @@ impl Default for PhysicsPosition {
 /// The physics engine resource — wraps an impetus PhysicsWorld.
 /// Stored as a kiran resource via `world.insert_resource(PhysicsEngine::new())`.
 pub struct PhysicsEngine {
+    /// The underlying impetus physics world.
     pub physics: impetus::PhysicsWorld,
     /// Maps kiran entity -> impetus BodyHandle
     entity_to_body: HashMap<Entity, impetus::BodyHandle>,
@@ -394,8 +423,20 @@ impl Default for PhysicsEngine {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum PhysicsCollisionEvent {
-    Started { entity_a: Entity, entity_b: Entity },
-    Stopped { entity_a: Entity, entity_b: Entity },
+    /// Two entities began colliding.
+    Started {
+        /// First entity in the collision pair.
+        entity_a: Entity,
+        /// Second entity in the collision pair.
+        entity_b: Entity,
+    },
+    /// Two entities stopped colliding.
+    Stopped {
+        /// First entity in the collision pair.
+        entity_a: Entity,
+        /// Second entity in the collision pair.
+        entity_b: Entity,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -405,9 +446,13 @@ pub enum PhysicsCollisionEvent {
 /// A debug wireframe shape for visualization.
 #[derive(Debug, Clone)]
 pub struct DebugShape {
+    /// The entity this shape belongs to.
     pub entity: Entity,
+    /// Shape geometry type.
     pub kind: DebugShapeKind,
+    /// World-space position.
     pub position: [f64; 3],
+    /// Rotation angle in radians.
     pub rotation: f64,
 }
 
@@ -415,10 +460,30 @@ pub struct DebugShape {
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum DebugShapeKind {
-    Circle { radius: f64 },
-    Box { half_extents: [f64; 3] },
-    Capsule { half_height: f64, radius: f64 },
-    Segment { a: [f64; 3], b: [f64; 3] },
+    /// Circle wireframe.
+    Circle {
+        /// Circle radius.
+        radius: f64,
+    },
+    /// Box wireframe.
+    Box {
+        /// Half-extents along each axis.
+        half_extents: [f64; 3],
+    },
+    /// Capsule wireframe.
+    Capsule {
+        /// Half the height of the cylindrical section.
+        half_height: f64,
+        /// Radius of the hemispherical caps.
+        radius: f64,
+    },
+    /// Line segment wireframe.
+    Segment {
+        /// Start point.
+        a: [f64; 3],
+        /// End point.
+        b: [f64; 3],
+    },
 }
 
 impl PhysicsEngine {
@@ -475,9 +540,13 @@ impl PhysicsEngine {
 /// Result of a raycast query, mapped to kiran entity IDs.
 #[derive(Debug, Clone)]
 pub struct RaycastHit {
+    /// The entity that was hit.
     pub entity: Entity,
+    /// World-space hit point.
     pub point: [f64; 3],
+    /// Surface normal at the hit point.
     pub normal: [f64; 3],
+    /// Distance from the ray origin to the hit point.
     pub distance: f64,
 }
 

@@ -30,6 +30,7 @@ pub struct NavAgent {
 }
 
 impl NavAgent {
+    /// Create a navigation agent with the given maximum speed.
     pub fn new(max_speed: f32) -> Self {
         Self {
             max_speed,

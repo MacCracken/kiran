@@ -1,8 +1,15 @@
-//! GPU rendering backend via soorat
+//! GPU rendering backend via soorat, prakash, and ranga
 //!
-//! Bridges soorat's GPU rendering engine with kiran's Renderer trait and ECS.
-//! Re-exports key soorat types and provides a [`SooratRenderer`] that implements
-//! kiran's [`Renderer`] trait.
+//! Bridges the AGNOS rendering stack with kiran's Renderer trait and ECS:
+//! - **soorat** — GPU rendering engine (sprites, meshes, PBR pipeline, shadows, etc.)
+//! - **prakash** — Physically-based optics (BRDF math, spectral color, atmosphere, lenses)
+//! - **ranga** — Image processing (pixel buffers, blend modes, filters, compositing)
+//!
+//! Provides a [`SooratRenderer`] that implements kiran's [`Renderer`] trait.
+
+// ---------------------------------------------------------------------------
+// soorat — GPU rendering
+// ---------------------------------------------------------------------------
 
 pub use soorat::GpuContext;
 pub use soorat::animation::{AnimationClip, JointUniforms, Skeleton};
@@ -39,6 +46,61 @@ pub use soorat::window::{
     self as soorat_window, Window as SooratWindow, WindowConfig as SooratWindowConfig,
 };
 
+// ---------------------------------------------------------------------------
+// prakash — physically-based optics
+// ---------------------------------------------------------------------------
+
+/// PBR shading math (Cook-Torrance BRDF, Fresnel, GGX distribution, geometry,
+/// anisotropic, clearcoat, sheen, iridescence, subsurface).
+pub use prakash::pbr;
+
+/// Spectral color science (wavelength↔RGB, blackbody, CIE, color temperature).
+pub use prakash::spectral;
+
+/// Geometric optics (Snell's law, Fresnel equations, critical angle, dispersion).
+pub use prakash::ray;
+
+/// Wave optics (interference, diffraction, polarization, coherence).
+pub use prakash::wave;
+
+/// Lens/mirror geometry (thin/thick, aberrations, MTF, depth of field).
+pub use prakash::lens;
+
+/// Atmospheric scattering (Rayleigh, Mie, sky color, optical depth).
+pub use prakash::atmosphere;
+
+pub use prakash::PrakashError;
+
+// ---------------------------------------------------------------------------
+// ranga — image processing
+// ---------------------------------------------------------------------------
+
+/// Pixel buffers and formats.
+pub use ranga::pixel::{BufferPool, PixelBuffer, PixelFormat, PixelView, PixelViewMut};
+
+/// Blend modes (Porter-Duff: Normal, Multiply, Screen, Overlay, etc.).
+pub use ranga::blend::{self, BlendMode};
+
+/// Image filters (blur, sharpen, brightness, contrast, saturation, etc.).
+pub use ranga::filter;
+
+/// Layer compositing (masks, transitions, gradients, premultiplied alpha).
+pub use ranga::composite;
+
+/// Color space conversions (sRGB, linear, HSL, Oklab, CIE, P3, CMYK).
+pub use ranga::color as ranga_color;
+
+/// Histograms (luminance, RGB, equalization, auto-levels).
+pub use ranga::histogram;
+
+/// Spatial transforms (crop, resize, affine, perspective, flip).
+pub use ranga::transform;
+
+/// Pixel format conversion (BT.601/709/2020, ARGB↔NV12).
+pub use ranga::convert;
+
+pub use ranga::RangaError;
+
 use crate::render::{Camera, DrawCommand, MeshDesc, RenderConfig, Renderer};
 
 // ---------------------------------------------------------------------------
@@ -72,6 +134,7 @@ pub struct SooratRenderer {
 }
 
 impl SooratRenderer {
+    /// Create a new soorat-backed renderer (headless-safe).
     pub fn new() -> Self {
         Self {
             config: RenderConfig::default(),

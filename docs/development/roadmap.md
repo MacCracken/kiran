@@ -3,32 +3,51 @@
 > **Kiran** (Sanskrit: किरण — ray of light) — AI-native game engine for AGNOS
 
 
-## 0.24.3
+## Completed
 
-- [ ] Electromagnetism crate integration (not yet scaffolded)
-- [ ] Thermodynamics crate integration (not yet scaffolded)
-- [ ] Quantum mechanics crate integration (not yet scaffolded)
+### 0.26 — Ecosystem Integration
 
-## V1.0 — Documentation / API Audit
+- [x] Full AGNOS crate stack updated to 1.x stable releases
+- [x] 46 optional dependencies across 16 cohesive feature gates
+- [x] Goonj acoustics integration (occlusion, propagation, room acoustics, diffraction, portals, coupled rooms, directivity, wall transmission, ambisonics, FDN reverb)
+- [x] Electromagnetism integration (bijli)
+- [x] Thermodynamics integration (ushma)
+- [x] Quantum mechanics integration (kana)
+- [x] License hardened to GPL-3.0-only (SPDX-correct)
 
-- [ ] Doc comments on all public types and functions
-- [ ] `cargo doc --all-features` clean with `-D warnings`
+### Feature gate layout (0.26)
+
+**Engine core:** rendering, audio, voice, physics, physics-3d, fluids, dynamics, ai, behavior, scripting, multiplayer, navigation
+
+**Science:** biology, chemistry, astronomy, world
+
+## V1.0
+
+### Documentation / API Audit
+
+- [ ] Doc comments on all public types, functions, fields, and variants
+- [ ] `RUSTDOCFLAGS="-D warnings -W missing_docs" cargo doc --all-features --no-deps` clean
 - [ ] Doc tests on key APIs (World, Scheduler, AnimState, NavAgent, FluidSimulation)
 - [ ] API review — consistent naming, builder patterns, error types
 
-## Goonj Integration (acoustics engine)
+### Integration Modules
 
-- [x] **Real-time occlusion queries**: `AcousticsEngine` wraps `OcclusionEngine` for source-listener occlusion with BVH-accelerated wall checks and per-band attenuation
-- [x] **Audio propagation**: Distance attenuation, atmospheric absorption, and Doppler shift via `AcousticsEngine` methods
-- [x] **Room acoustics**: `RoomAcoustics` component + `generate_ir()` re-export for environment-specific reverb
-- [x] **Diffraction**: `edge_diffraction_loss()` and `utd_wedge_diffraction()` re-exported for sound bending around obstacles
-- [x] **Portal propagation**: `AcousticPortal` component with `energy_transfer()` for sound through doorways between rooms
-- [x] **Coupled rooms**: `CoupledRooms` and `coupled_room_decay()` re-exported for multi-room reverb with double-slope decay
-- [x] **Source directivity**: `AcousticSource` component with `DirectivityPattern` for directional sound sources
-- [x] **Wall transmission**: `WallTransmission` component wrapping `WallConstruction` for sound through walls
-- [x] **Ambisonics**: `encode_bformat()` and `encode_hoa()` re-exported for spatial audio encoding
-- [x] **FDN reverb**: `ReverbProcessor` resource wrapping `Fdn` for efficient real-time late reverberation
+- [ ] Wire new science crates into ECS (biology, chemistry, astronomy, world modules)
+- [ ] Wire dynamics crates into physics pipeline (bijli, dravya, ushma, pavan)
+- [ ] Wire voice crates into audio pipeline (svara, shabda, prani)
+- [ ] Wire rendering additions (prakash optics, ranga image processing)
 
-## Future Features
+### Hardening
+
+- [ ] 80%+ test coverage
+- [ ] Benchmark coverage for all hot paths
+- [ ] `cargo audit` / `cargo deny` clean
+- [ ] Security review (scripting sandbox, network protocol, asset loading)
+
+## Future Features (demand-gated)
 
 - [ ] VR/XR support
+- [ ] Deterministic replay / rollback netcode
+- [ ] GPU compute pipeline (particle systems, cloth, hair)
+- [ ] Procedural generation framework
+- [ ] Editor protocol (for salai)

@@ -66,39 +66,56 @@ pub enum NetMessage {
     /// Input from a client.
     InputReplication(InputMessage),
     /// Player joined.
-    PlayerJoin { node_id: NodeId },
+    PlayerJoin {
+        /// ID of the joining node.
+        node_id: NodeId,
+    },
     /// Player left.
-    PlayerLeave { node_id: NodeId },
+    PlayerLeave {
+        /// ID of the leaving node.
+        node_id: NodeId,
+    },
 }
 
 /// Full state snapshot of all replicated entities.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateSnapshot {
+    /// Server tick when this snapshot was taken.
     pub tick: u64,
+    /// Entity states included in the snapshot.
     pub entities: Vec<EntityState>,
 }
 
 /// State of a single entity for network sync.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EntityState {
+    /// Unique entity identifier.
     pub entity_id: u64,
+    /// World-space position.
     pub position: [f32; 3],
+    /// Owning network node, if any.
     pub owner: Option<NodeId>,
 }
 
 /// Delta update — only changed entities since last snapshot.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StateDelta {
+    /// Tick of the base snapshot this delta is relative to.
     pub base_tick: u64,
+    /// Tick of the new state.
     pub tick: u64,
+    /// Only the entities that changed since base_tick.
     pub changes: Vec<EntityState>,
 }
 
 /// Replicated input from a client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InputMessage {
+    /// Node that sent this input.
     pub node_id: NodeId,
+    /// Tick the input applies to.
     pub tick: u64,
+    /// Serialized input data.
     pub payload: String,
 }
 
@@ -233,8 +250,11 @@ impl NetState {
 /// A tagged message with reliability and sequence number.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaggedMessage {
+    /// The network message payload.
     pub message: NetMessage,
+    /// Delivery guarantee for this message.
     pub reliability: Reliability,
+    /// Monotonic sequence number.
     pub sequence: u64,
 }
 
@@ -254,6 +274,7 @@ impl Default for ReliableChannel {
 }
 
 impl ReliableChannel {
+    /// Create a new reliable channel.
     pub fn new() -> Self {
         Self {
             next_sequence: 1,
@@ -320,6 +341,7 @@ pub struct InterestArea {
 }
 
 impl InterestArea {
+    /// Create an interest area centered at `center` with the given `radius`.
     pub fn new(center: [f32; 3], radius: f32) -> Self {
         Self { center, radius }
     }
@@ -460,8 +482,11 @@ pub fn apply_snapshot(world: &mut World, snapshot: &StateSnapshot) {
 /// Interpolation state for smoothing network updates.
 #[derive(Debug, Clone)]
 pub struct NetInterpolation {
+    /// Position at the start of interpolation.
     pub previous: [f32; 3],
+    /// Target position from latest network update.
     pub target: [f32; 3],
+    /// Interpolation progress (0.0–1.0).
     pub alpha: f32,
 }
 
@@ -552,6 +577,7 @@ pub struct PredictionBuffer {
 }
 
 impl PredictionBuffer {
+    /// Create a prediction buffer with the given capacity.
     pub fn new(max_size: usize) -> Self {
         Self {
             history: std::collections::VecDeque::with_capacity(max_size),
@@ -592,12 +618,14 @@ impl PredictionBuffer {
         self.history.retain(|(_, t)| *t >= tick);
     }
 
+    /// Number of stored predictions.
     #[must_use]
     #[inline]
     pub fn len(&self) -> usize {
         self.history.len()
     }
 
+    /// Returns true if no predictions are stored.
     #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -635,6 +663,7 @@ impl Default for ClockSync {
 }
 
 impl ClockSync {
+    /// Create a new clock sync with zero offset.
     pub fn new() -> Self {
         Self::default()
     }

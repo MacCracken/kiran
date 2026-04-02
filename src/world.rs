@@ -20,28 +20,36 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum KiranError {
+    /// Entity does not exist in the world.
     #[error("entity {0:?} does not exist")]
     EntityNotFound(Entity),
 
+    /// Component not found on the entity.
     #[error("component not found for entity {0:?}")]
     ComponentNotFound(Entity),
 
+    /// Singleton resource not found.
     #[error("resource of type `{0}` not found")]
     ResourceNotFound(&'static str),
 
+    /// Entity was already despawned (stale handle).
     #[error("entity {0:?} has already been despawned")]
     EntityDespawned(Entity),
 
+    /// Scene-related error.
     #[error("scene error: {0}")]
     Scene(String),
 
+    /// Rendering error.
     #[error("render error: {0}")]
     Render(String),
 
+    /// Catch-all for other errors.
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
 
+/// Convenience alias for `std::result::Result<T, KiranError>`.
 pub type Result<T> = std::result::Result<T, KiranError>;
 
 // ---------------------------------------------------------------------------
@@ -195,6 +203,7 @@ impl Default for World {
 }
 
 impl World {
+    /// Create an empty world.
     pub fn new() -> Self {
         Self {
             allocator: EntityAllocator::default(),
@@ -472,6 +481,7 @@ pub struct Commands {
 }
 
 impl Commands {
+    /// Create an empty command buffer.
     pub fn new() -> Self {
         Self::default()
     }
@@ -512,6 +522,7 @@ impl Commands {
         self.queue.len()
     }
 
+    /// Whether the command buffer is empty.
     pub fn is_empty(&self) -> bool {
         self.queue.is_empty()
     }
@@ -583,6 +594,7 @@ pub struct ChangeTracker {
 }
 
 impl ChangeTracker {
+    /// Create an empty change tracker.
     pub fn new() -> Self {
         Self::default()
     }
@@ -686,6 +698,7 @@ pub struct Bundle {
 }
 
 impl Bundle {
+    /// Create an empty bundle.
     pub fn new() -> Self {
         Self {
             components: Vec::new(),
@@ -732,6 +745,7 @@ impl Default for Scheduler {
 }
 
 impl Scheduler {
+    /// Create an empty scheduler.
     pub fn new() -> Self {
         Self {
             systems: Vec::new(),
@@ -870,6 +884,7 @@ pub struct FnSystem<F: FnMut(&mut World) + Send> {
 }
 
 impl<F: FnMut(&mut World) + Send> FnSystem<F> {
+    /// Create a closure-based system with a name and stage.
     pub fn new(name: impl Into<String>, stage: SystemStage, func: F) -> Self {
         Self {
             func,
@@ -968,6 +983,7 @@ pub struct EventBus {
 }
 
 impl EventBus {
+    /// Create an empty event bus.
     pub fn new() -> Self {
         Self::default()
     }

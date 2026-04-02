@@ -1,14 +1,96 @@
-//! Audio integration via dhvani
+//! Audio integration via dhvani, naad, shravan, goonj, garjan, and ghurni
 //!
-//! Provides spatial audio for the game engine:
+//! Bridges the AGNOS audio stack with kiran's ECS:
+//! - **dhvani** — Audio engine (graph processor, clock, playback)
+//! - **naad** — Synthesis primitives (oscillators, filters, envelopes, voice pools)
+//! - **shravan** — Audio codecs (WAV, FLAC, Ogg, MP3, Opus, resampling)
+//! - **goonj** — Spatial acoustics (occlusion, reverb, ambisonics) — see [`crate::acoustics`]
+//! - **garjan** — Environmental sound synthesis (weather, impacts, footsteps, water)
+//! - **ghurni** — Mechanical sound synthesis (engines, gears, motors, turbines)
+//!
+//! Core types:
 //! - [`AudioEngine`] resource wrapping dhvani's graph processor
 //! - [`SoundSource`] component for entities that emit sound
 //! - [`AudioListener`] component for the entity that "hears" (usually the camera)
 //! - [`SoundTrigger`] component for event-driven audio playback
+//! - [`EnvironmentSound`] component for procedural environmental audio
+//! - [`MechanicalSound`] component for RPM-driven mechanical audio
 
 use serde::{Deserialize, Serialize};
 
 use crate::world::{Entity, EventBus, World};
+
+// ---------------------------------------------------------------------------
+// naad — synthesis primitives
+// ---------------------------------------------------------------------------
+
+/// Dynamics processing (compressor, limiter, gate).
+pub use naad::dynamics;
+/// Audio effects (delay, chorus, flanger, etc.).
+pub use naad::effects;
+/// ADSR envelope generators.
+pub use naad::envelope;
+/// Equalizer (parametric EQ bands).
+pub use naad::eq;
+/// Audio filters (biquad, low-pass, high-pass, band-pass, etc.).
+pub use naad::filter as synth_filter;
+/// Modulation sources and routing.
+pub use naad::modulation;
+/// Noise generators (white, pink, brown).
+pub use naad::noise;
+/// Audio synthesis oscillators and waveforms.
+pub use naad::oscillator;
+/// Spatial panning utilities.
+pub use naad::panning;
+/// Reverb algorithms.
+pub use naad::reverb;
+/// Voice pool management for polyphonic synthesis.
+pub use naad::voice;
+/// Wavetable synthesis.
+pub use naad::wavetable;
+
+// ---------------------------------------------------------------------------
+// shravan — audio codecs
+// ---------------------------------------------------------------------------
+
+/// Audio codec detection and decoding.
+pub use shravan::codec;
+/// Audio format metadata (sample rate, channels, duration, bit depth).
+pub use shravan::format;
+
+// ---------------------------------------------------------------------------
+// garjan — environmental sound synthesis
+// ---------------------------------------------------------------------------
+
+/// Fire and combustion sounds.
+pub use garjan::fire;
+/// Footstep synthesis.
+pub use garjan::footstep;
+/// Impact sounds (hits, drops, crashes).
+pub use garjan::impact;
+/// Ambient texture loops.
+pub use garjan::texture as ambient_texture;
+/// Water sounds (surf, streams, underwater).
+pub use garjan::water;
+/// Weather sounds (thunder, rain, wind).
+pub use garjan::weather;
+
+// ---------------------------------------------------------------------------
+// ghurni — mechanical sound synthesis
+// ---------------------------------------------------------------------------
+
+/// Internal combustion engine synthesis.
+pub use ghurni::engine as mech_engine;
+/// Gear and transmission sounds.
+pub use ghurni::gear;
+/// Mechanical sound mixer.
+pub use ghurni::mixer as mech_mixer;
+/// Electric motor synthesis.
+pub use ghurni::motor;
+/// Synthesizer trait for all mechanical sources.
+pub use ghurni::traits as mech_traits;
+/// Turbine synthesis.
+pub use ghurni::turbine;
 
 // ---------------------------------------------------------------------------
 // Sound source component
@@ -67,6 +149,7 @@ impl Default for SoundSource {
 }
 
 impl SoundSource {
+    /// Create a new sound source from a file path.
     pub fn new(source: impl Into<String>) -> Self {
         Self {
             source: source.into(),
@@ -74,31 +157,37 @@ impl SoundSource {
         }
     }
 
+    /// Set playback volume.
     pub fn with_volume(mut self, volume: f32) -> Self {
         self.volume = volume;
         self
     }
 
+    /// Enable looping playback.
     pub fn with_looping(mut self) -> Self {
         self.looping = true;
         self
     }
 
+    /// Disable spatial audio (play as 2D).
     pub fn non_spatial(mut self) -> Self {
         self.spatial = false;
         self
     }
 
+    /// Set maximum audible distance.
     pub fn with_max_distance(mut self, dist: f32) -> Self {
         self.max_distance = dist;
         self
     }
 
+    /// Set playback pitch/speed.
     pub fn with_pitch(mut self, pitch: f32) -> Self {
         self.pitch = pitch;
         self
     }
 
+    /// Set the mix bus for this source.
     pub fn with_bus(mut self, bus: MixBus) -> Self {
         self.bus = bus;
         self
@@ -137,6 +226,7 @@ pub struct SoundPool {
 }
 
 impl SoundPool {
+    /// Create a pool with the given voice limit.
     pub fn new(max_voices: usize) -> Self {
         Self {
             max_voices,
@@ -195,12 +285,16 @@ pub enum TriggerKind {
 /// Links an event to a sound effect.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoundTrigger {
+    /// What event triggers this sound.
     pub kind: TriggerKind,
+    /// Path to the audio file.
     pub source: String,
+    /// Playback volume (0.0–1.0).
     pub volume: f32,
 }
 
 impl SoundTrigger {
+    /// Create a trigger that fires on collision start.
     pub fn on_collision(source: impl Into<String>) -> Self {
         Self {
             kind: TriggerKind::CollisionStart,
@@ -209,6 +303,7 @@ impl SoundTrigger {
         }
     }
 
+    /// Create a trigger that fires on a named action.
     pub fn on_action(action: impl Into<String>, source: impl Into<String>) -> Self {
         Self {
             kind: TriggerKind::Action(action.into()),
@@ -217,6 +312,7 @@ impl SoundTrigger {
         }
     }
 
+    /// Set trigger playback volume.
     pub fn with_volume(mut self, volume: f32) -> Self {
         self.volume = volume;
         self
@@ -332,12 +428,18 @@ impl Default for AudioEngine {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum MixBus {
+    /// Master bus — scales all other buses.
     Master,
+    /// Background music.
     Music,
+    /// Sound effects (default).
     #[default]
     SFX,
+    /// Ambient/environmental sounds.
     Ambient,
+    /// Character dialogue.
     Dialogue,
+    /// UI feedback sounds.
     UI,
 }
 
@@ -361,6 +463,7 @@ impl Default for MixBusVolumes {
 }
 
 impl MixBusVolumes {
+    /// Create default mix bus volumes.
     pub fn new() -> Self {
         Self::default()
     }
@@ -397,7 +500,9 @@ impl MixBusVolumes {
 /// Event published when a named action triggers a sound.
 #[derive(Debug, Clone)]
 pub struct SoundActionEvent {
+    /// The action name that was triggered.
     pub action: String,
+    /// The entity that triggered the action.
     pub entity: Entity,
 }
 
@@ -456,6 +561,153 @@ fn apply_trigger(world: &mut World, entity: Entity, kind: TriggerKind) {
         source.source = source_path;
         source.volume = volume;
         source.playing = true;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Environmental sound component
+// ---------------------------------------------------------------------------
+
+/// Environmental sound source — procedural audio driven by garjan.
+///
+/// Attach to an entity to generate weather, impact, water, or ambient sounds.
+/// The `kind` field selects the synthesis model; `intensity` and `variation`
+/// control the sound character.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EnvironmentSound {
+    /// What type of environmental sound this produces.
+    pub kind: EnvironmentSoundKind,
+    /// Intensity (0.0 = silent, 1.0 = full).
+    pub intensity: f32,
+    /// Random variation seed (different values produce different textures).
+    pub variation: u64,
+    /// Playback volume.
+    pub volume: f32,
+    /// Whether this source is active.
+    pub active: bool,
+}
+
+/// Kind of environmental sound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum EnvironmentSoundKind {
+    /// Thunder crack/rumble.
+    Thunder,
+    /// Rain (light to heavy).
+    Rain,
+    /// Wind (breeze to gale).
+    Wind,
+    /// Fire/combustion.
+    Fire,
+    /// Water (surf, streams, drips).
+    Water,
+    /// Ambient texture loop.
+    Ambient,
+    /// Footsteps on terrain.
+    Footstep,
+    /// Object impact.
+    Impact,
+}
+
+impl EnvironmentSound {
+    /// Create a new environmental sound of the given kind.
+    pub fn new(kind: EnvironmentSoundKind) -> Self {
+        Self {
+            kind,
+            intensity: 1.0,
+            variation: 0,
+            volume: 1.0,
+            active: true,
+        }
+    }
+
+    /// Set the intensity.
+    pub fn with_intensity(mut self, intensity: f32) -> Self {
+        self.intensity = intensity;
+        self
+    }
+
+    /// Set the variation seed.
+    pub fn with_variation(mut self, variation: u64) -> Self {
+        self.variation = variation;
+        self
+    }
+
+    /// Set playback volume.
+    pub fn with_volume(mut self, volume: f32) -> Self {
+        self.volume = volume;
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Mechanical sound component
+// ---------------------------------------------------------------------------
+
+/// Mechanical sound source — RPM-driven audio driven by ghurni.
+///
+/// Attach to an entity representing a machine (vehicle, motor, fan, etc.).
+/// The synthesis model produces sound based on `rpm` and `load`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MechanicalSound {
+    /// What type of machine this represents.
+    pub kind: MechanicalSoundKind,
+    /// Revolutions per minute.
+    pub rpm: f32,
+    /// Mechanical load factor (0.0 = idle, 1.0 = full load).
+    pub load: f32,
+    /// Playback volume.
+    pub volume: f32,
+    /// Whether this source is active.
+    pub active: bool,
+}
+
+/// Kind of mechanical sound source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum MechanicalSoundKind {
+    /// Internal combustion engine.
+    Engine,
+    /// Electric motor.
+    Motor,
+    /// Gear/transmission.
+    Gear,
+    /// Turbine.
+    Turbine,
+    /// Chain drive.
+    Chain,
+    /// Belt drive.
+    Belt,
+}
+
+impl MechanicalSound {
+    /// Create a new mechanical sound of the given kind.
+    pub fn new(kind: MechanicalSoundKind) -> Self {
+        Self {
+            kind,
+            rpm: 0.0,
+            load: 0.0,
+            volume: 1.0,
+            active: true,
+        }
+    }
+
+    /// Set the RPM.
+    pub fn with_rpm(mut self, rpm: f32) -> Self {
+        self.rpm = rpm;
+        self
+    }
+
+    /// Set the load factor.
+    pub fn with_load(mut self, load: f32) -> Self {
+        self.load = load;
+        self
+    }
+
+    /// Set playback volume.
+    pub fn with_volume(mut self, volume: f32) -> Self {
+        self.volume = volume;
+        self
     }
 }
 

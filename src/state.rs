@@ -4,9 +4,13 @@ use serde::{Deserialize, Serialize};
 
 /// A game state with enter/exit lifecycle.
 pub trait GameState: Send {
+    /// Return the state's display name.
     fn name(&self) -> &str;
+    /// Called when transitioning into this state.
     fn on_enter(&mut self, _world: &mut crate::World) {}
+    /// Called when transitioning out of this state.
     fn on_exit(&mut self, _world: &mut crate::World) {}
+    /// Called each frame while this state is active.
     fn update(&mut self, _world: &mut crate::World) {}
 }
 
@@ -18,6 +22,7 @@ pub struct StateMachine {
 }
 
 impl StateMachine {
+    /// Create a state machine with the given initial state.
     pub fn new(initial: Box<dyn GameState>) -> Self {
         Self {
             states: vec![initial],

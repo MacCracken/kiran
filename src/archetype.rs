@@ -118,6 +118,7 @@ impl Default for ArchetypeStore {
 }
 
 impl ArchetypeStore {
+    /// Create an empty archetype store.
     pub fn new() -> Self {
         Self {
             archetypes: Vec::new(),

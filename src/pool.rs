@@ -361,11 +361,14 @@ impl Default for SimdVec {
 /// contiguous arrays for SIMD-friendly iteration.
 #[derive(Debug, Clone, Default)]
 pub struct Soa2d {
+    /// X components.
     pub x: SimdVec,
+    /// Y components.
     pub y: SimdVec,
 }
 
 impl Soa2d {
+    /// Create an empty 2D SOA store.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -390,6 +393,7 @@ impl Soa2d {
         self.x.len()
     }
 
+    /// Whether the store is empty.
     #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -408,6 +412,7 @@ impl Soa2d {
         self.y.scale(factor);
     }
 
+    /// Remove all points.
     pub fn clear(&mut self) {
         self.x.clear();
         self.y.clear();
@@ -417,12 +422,16 @@ impl Soa2d {
 /// SOA (Structure of Arrays) storage for 3D positions.
 #[derive(Debug, Clone, Default)]
 pub struct Soa3d {
+    /// X components.
     pub x: SimdVec,
+    /// Y components.
     pub y: SimdVec,
+    /// Z components.
     pub z: SimdVec,
 }
 
 impl Soa3d {
+    /// Create an empty 3D SOA store.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
@@ -448,6 +457,7 @@ impl Soa3d {
         self.x.len()
     }
 
+    /// Whether the store is empty.
     #[must_use]
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -468,6 +478,7 @@ impl Soa3d {
         self.z.add_assign(vz);
     }
 
+    /// Remove all points.
     pub fn clear(&mut self) {
         self.x.clear();
         self.y.clear();

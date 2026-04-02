@@ -16,100 +16,183 @@ use std::collections::{HashMap, HashSet};
 #[non_exhaustive]
 pub enum KeyCode {
     // Letters
+    /// The A key.
     A,
+    /// The B key.
     B,
+    /// The C key.
     C,
+    /// The D key.
     D,
+    /// The E key.
     E,
+    /// The F key.
     F,
+    /// The G key.
     G,
+    /// The H key.
     H,
+    /// The I key.
     I,
+    /// The J key.
     J,
+    /// The K key.
     K,
+    /// The L key.
     L,
+    /// The M key.
     M,
+    /// The N key.
     N,
+    /// The O key.
     O,
+    /// The P key.
     P,
+    /// The Q key.
     Q,
+    /// The R key.
     R,
+    /// The S key.
     S,
+    /// The T key.
     T,
+    /// The U key.
     U,
+    /// The V key.
     V,
+    /// The W key.
     W,
+    /// The X key.
     X,
+    /// The Y key.
     Y,
+    /// The Z key.
     Z,
 
     // Digits
+    /// The 0 key.
     Key0,
+    /// The 1 key.
     Key1,
+    /// The 2 key.
     Key2,
+    /// The 3 key.
     Key3,
+    /// The 4 key.
     Key4,
+    /// The 5 key.
     Key5,
+    /// The 6 key.
     Key6,
+    /// The 7 key.
     Key7,
+    /// The 8 key.
     Key8,
+    /// The 9 key.
     Key9,
 
     // Arrows
+    /// Up arrow key.
     Up,
+    /// Down arrow key.
     Down,
+    /// Left arrow key.
     Left,
+    /// Right arrow key.
     Right,
 
     // Modifiers
+    /// Left Shift key.
     LShift,
+    /// Right Shift key.
     RShift,
+    /// Left Control key.
     LCtrl,
+    /// Right Control key.
     RCtrl,
+    /// Left Alt key.
     LAlt,
+    /// Right Alt key.
     RAlt,
+    /// Left Super (Windows/Command) key.
     LSuper,
+    /// Right Super (Windows/Command) key.
     RSuper,
 
     // Function keys
+    /// The F1 key.
     F1,
+    /// The F2 key.
     F2,
+    /// The F3 key.
     F3,
+    /// The F4 key.
     F4,
+    /// The F5 key.
     F5,
+    /// The F6 key.
     F6,
+    /// The F7 key.
     F7,
+    /// The F8 key.
     F8,
+    /// The F9 key.
     F9,
+    /// The F10 key.
     F10,
+    /// The F11 key.
     F11,
+    /// The F12 key.
     F12,
 
     // Common keys
+    /// Space bar.
     Space,
+    /// Enter / Return key.
     Enter,
+    /// Escape key.
     Escape,
+    /// Tab key.
     Tab,
+    /// Backspace key.
     Backspace,
+    /// Delete key.
     Delete,
+    /// Insert key.
     Insert,
+    /// Home key.
     Home,
+    /// End key.
     End,
+    /// Page Up key.
     PageUp,
+    /// Page Down key.
     PageDown,
+    /// Caps Lock key.
     CapsLock,
 
     // Punctuation / misc
+    /// Minus / hyphen key.
     Minus,
+    /// Equals key.
     Equals,
+    /// Left bracket key.
     LeftBracket,
+    /// Right bracket key.
     RightBracket,
+    /// Backslash key.
     Backslash,
+    /// Semicolon key.
     Semicolon,
+    /// Apostrophe key.
     Apostrophe,
+    /// Comma key.
     Comma,
+    /// Period key.
     Period,
+    /// Forward slash key.
     Slash,
+    /// Grave accent / backtick key.
     Grave,
 }
 
@@ -121,10 +204,15 @@ pub enum KeyCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum MouseButton {
+    /// Left mouse button.
     Left,
+    /// Right mouse button.
     Right,
+    /// Middle mouse button.
     Middle,
+    /// Back mouse button.
     Back,
+    /// Forward mouse button.
     Forward,
 }
 
@@ -136,20 +224,35 @@ pub enum MouseButton {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum GamepadButton {
-    South, // A / Cross
-    East,  // B / Circle
-    West,  // X / Square
-    North, // Y / Triangle
+    /// A / Cross button.
+    South,
+    /// B / Circle button.
+    East,
+    /// X / Square button.
+    West,
+    /// Y / Triangle button.
+    North,
+    /// D-pad up.
     DPadUp,
+    /// D-pad down.
     DPadDown,
+    /// D-pad left.
     DPadLeft,
+    /// D-pad right.
     DPadRight,
+    /// Left bumper / L1.
     LeftBumper,
+    /// Right bumper / R1.
     RightBumper,
+    /// Left stick press / L3.
     LeftStick,
+    /// Right stick press / R3.
     RightStick,
+    /// Start / Options button.
     Start,
+    /// Select / Share button.
     Select,
+    /// Home / Guide button.
     Home,
 }
 
@@ -157,11 +260,17 @@ pub enum GamepadButton {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum GamepadAxis {
+    /// Left stick horizontal axis.
     LeftStickX,
+    /// Left stick vertical axis.
     LeftStickY,
+    /// Right stick horizontal axis.
     RightStickX,
+    /// Right stick vertical axis.
     RightStickY,
+    /// Left trigger / L2 axis.
     LeftTrigger,
+    /// Right trigger / R2 axis.
     RightTrigger,
 }
 
@@ -173,29 +282,48 @@ pub enum GamepadAxis {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum InputEvent {
+    /// A key was pressed.
     KeyPressed(KeyCode),
+    /// A key was released.
     KeyReleased(KeyCode),
+    /// The mouse cursor moved.
     MouseMoved {
+        /// Cursor X position.
         x: f64,
+        /// Cursor Y position.
         y: f64,
     },
+    /// A mouse button was pressed.
     MouseButtonPressed(MouseButton),
+    /// A mouse button was released.
     MouseButtonReleased(MouseButton),
+    /// The mouse scroll wheel moved.
     MouseScroll {
+        /// Horizontal scroll delta.
         dx: f64,
+        /// Vertical scroll delta.
         dy: f64,
     },
+    /// A gamepad button was pressed.
     GamepadButtonPressed(GamepadButton),
+    /// A gamepad button was released.
     GamepadButtonReleased(GamepadButton),
+    /// A gamepad axis value changed.
     GamepadAxisMoved {
+        /// The axis that moved.
         axis: GamepadAxis,
+        /// New axis value (-1.0 to 1.0).
         value: f64,
     },
     /// Touch began/moved/ended.
     Touch {
+        /// Unique touch point identifier.
         id: u64,
+        /// Touch X position.
         x: f64,
+        /// Touch Y position.
         y: f64,
+        /// Current phase of the touch.
         phase: TouchPhase,
     },
     /// Text character input (for UI text fields).
@@ -208,9 +336,13 @@ pub enum InputEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum TouchPhase {
+    /// Touch began.
     Started,
+    /// Touch point moved.
     Moved,
+    /// Touch ended (finger lifted).
     Ended,
+    /// Touch was cancelled by the system.
     Cancelled,
 }
 
@@ -225,10 +357,15 @@ pub type ActionName = String;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum InputBinding {
+    /// Keyboard key binding.
     Key(KeyCode),
+    /// Mouse button binding.
     Mouse(MouseButton),
+    /// Gamepad button binding.
     Gamepad(GamepadButton),
+    /// Gamepad axis positive direction binding.
     GamepadAxisPositive(GamepadAxis),
+    /// Gamepad axis negative direction binding.
     GamepadAxisNegative(GamepadAxis),
 }
 
@@ -239,6 +376,7 @@ pub struct ActionMap {
 }
 
 impl ActionMap {
+    /// Create a new empty action map.
     pub fn new() -> Self {
         Self::default()
     }
@@ -347,11 +485,12 @@ pub struct InputState {
     text_input: Vec<char>,
     /// Whether cursor is locked.
     cursor_locked: bool,
-    /// Active input context (e.g., "gameplay", "menu", "ui").
+    /// Active input context (e.g., `"gameplay"`, `"menu"`, `"ui"`).
     pub context: String,
 }
 
 impl InputState {
+    /// Create a new empty input state.
     pub fn new() -> Self {
         Self::default()
     }
