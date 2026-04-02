@@ -1,0 +1,8 @@
+[cargo-vet]
+version = "0.10"
+
+[imports.bytecode-alliance]
+url = "https://raw.githubusercontent.com/nickel-org/nickel.rs/master/supply-chain/audits.toml"
+
+[policy.kiran]
+audit-as-crates-io = false

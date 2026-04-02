@@ -1,0 +1,36 @@
+[package]
+name = "kiran-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kiran = { path = "..", features = ["full"] }
+
+# Prevent debug info from slowing link times during fuzzing.
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "fuzz_scene_load"
+path = "fuzz_targets/fuzz_scene_load.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_world"
+path = "fuzz_targets/fuzz_world.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_input"
+path = "fuzz_targets/fuzz_input.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_asset_path"
+path = "fuzz_targets/fuzz_asset_path.rs"
+doc = false

@@ -2,6 +2,75 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+#### Ecosystem Integration
+- **46 optional dependencies** across 16 cohesive feature gates (up from 11 deps / 10 gates)
+- **rendering** — prakash (PBR optics, spectral color, atmosphere) + ranga (pixel buffers, blend modes, filters, compositing)
+- **audio** — naad (synthesis), shravan (codecs: WAV/FLAC/Ogg), garjan (environmental sounds), ghurni (mechanical sounds)
+- **voice** — new feature gate: svara (formant synthesis), shabda (G2P), prani (creature vocals)
+- **dynamics** — new feature gate: bijli (EM fields), dravya (material science), ushma (thermodynamics), pavan (aerodynamics)
+- **behavior** — expanded from bhava-only to include bodh (psychology), mastishk (neuroscience), jantu (ethology)
+- **biology** — new feature gate: sharira (physiology), jivanu (microbiology), rasayan (biochemistry), vanaspati (botany)
+- **chemistry** — new feature gate: kimiya (reactions), khanij (geology), tanmatra (atomic physics), kana (quantum mechanics)
+- **astronomy** — new feature gate: falak (orbital mechanics), jyotish (planetary positions), tara (stellar), brahmanda (cosmology), badal (weather)
+- **world** — new feature gate: itihas (history), sankhya (calendars), varna (languages), pramana (statistics)
+
+#### ECS Components
+- `EnvironmentSound`, `MechanicalSound` — procedural audio components (garjan/ghurni)
+- `VoiceSource`, `CreatureVoiceSource` — vocal synthesis components (svara/prani)
+- `Cognition`, `NeuralState`, `CreatureBehavior` — behavior components (bodh/mastishk/jantu)
+- `EmField`, `MaterialBody`, `ThermalBody`, `AeroSurface` — dynamics components
+- `Physiology`, `Microbe`, `MetabolicProfile`, `PlantState` — biology components
+- `ChemicalBody`, `GeologicalBody`, `RadioactiveSource` — chemistry components
+- `CelestialBody`, `WeatherZone` — astronomy components
+- `CultureProfile`, `StochasticSource` — world-building components
+- `SpeechRequest`, `VocalizeRequest` — voice event types
+
+#### Documentation
+- Doc comments on all 403 public items (types, functions, fields, variants)
+- 27 doc tests across core + all wiring modules (up from 2)
+- 4 architectural decision records (ECS storage, TOML scenes, WASM sandbox, feature isolation)
+- Threat model documenting security surface and mitigations
+- Guides: usage patterns, testing strategy, performance tuning
+- 6 runnable examples (physics, audio, scripting, multiplayer, behavior, dynamics)
+
+#### Infrastructure
+- Fuzz testing: 4 targets (scene loading, world operations, input, asset paths)
+- Supply-chain verification via cargo-vet
+- 4 new benchmark suites (dynamics, biology, science, voice)
+- README badges (crates.io, docs.rs, CI, license)
+
+### Changed
+- **license** — GPL-3.0 → GPL-3.0-only (SPDX-correct) across Cargo.toml, README, CLAUDE.md, deny.toml
+- **feature `personality`** → renamed to **`behavior`** (now includes bodh, mastishk, jantu)
+- **feature `acoustics`** → folded into **`audio`** (goonj now part of audio gate)
+- **deps** — all AGNOS crates updated to 1.x stable (hisab 1.4, impetus 1.3, soorat 1.0, etc.)
+- **deps** — criterion 0.5 → 0.8 (migrated `criterion::black_box` → `std::hint::black_box`)
+- **deps** — toml 0.8 → 1.1, reqwest 0.12 → 0.13
+- **deny.toml** — removed deprecated `GPL-3.0` SPDX, removed stale RUSTSEC-2024-0436 advisory ignore, trimmed unused license allowances
+
+### Fixed
+- **audio** — eliminated `unwrap()` in `apply_trigger` (replaced with safe `if let` chain)
+
+### Security
+- **scripting** — path validation on WASM loading (canonicalization + cwd boundary check)
+- **scripting** — bounded message buffers (MAX_SCRIPT_MESSAGES = 1024)
+- **assets** — path traversal protection (reject `..` components, validate canonicalized paths)
+- **assets** — file size limit before loading (MAX_ASSET_FILE_SIZE = 256 MB)
+- **scene** — TOML input size limit (MAX_SCENE_TOML_SIZE = 10 MB)
+- **network** — bounded inbox/outbox (MAX_INBOX_SIZE = MAX_OUTBOX_SIZE = 4096)
+- **network** — bounded dedup set with auto-trim (MAX_DEDUP_ENTRIES = 16384)
+- **network** — message field validation (node ID length, entity list size, payload size)
+- **network** — documented authentication requirements for PlayerJoin/PlayerLeave
+
+### Performance
+- 84.03% test coverage (2237/2662 lines)
+- 587 unit tests + 27 doc tests — 0 failures
+- 8 benchmark suites across all feature domains
+
 ## [0.26.3] - 2026-03-26
 
 ### Added

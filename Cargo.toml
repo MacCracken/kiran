@@ -135,6 +135,30 @@ pramana = { version = "1.2", optional = true }
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 
+[[example]]
+name = "physics_demo"
+required-features = ["physics"]
+
+[[example]]
+name = "audio_demo"
+required-features = ["audio"]
+
+[[example]]
+name = "scripting_demo"
+required-features = ["scripting"]
+
+[[example]]
+name = "multiplayer_demo"
+required-features = ["multiplayer"]
+
+[[example]]
+name = "behavior_demo"
+required-features = ["behavior"]
+
+[[example]]
+name = "dynamics_demo"
+required-features = ["dynamics"]
+
 [[bench]]
 name = "engine"
 harness = false
