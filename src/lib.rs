@@ -35,6 +35,12 @@ pub mod acoustics;
 #[cfg(feature = "voice")]
 pub mod voice;
 
+#[cfg(feature = "dynamics")]
+pub mod dynamics;
+
+#[cfg(feature = "biology")]
+pub mod biology;
+
 pub mod animation;
 pub mod archetype;
 pub mod asset;
