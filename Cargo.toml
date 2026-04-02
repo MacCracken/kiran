@@ -109,7 +109,7 @@ majra = { version = "1.0", optional = true }
 raasta = { version = "1.0", optional = true }
 
 # Media (optional)
-tarang = { version = "0.21", optional = true }
+tarang = { version = "1.0", optional = true }
 
 # Biology (optional)
 sharira = { version = "1.1", optional = true }
