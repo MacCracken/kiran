@@ -41,6 +41,15 @@ pub mod dynamics;
 #[cfg(feature = "biology")]
 pub mod biology;
 
+#[cfg(feature = "chemistry")]
+pub mod chemistry;
+
+#[cfg(feature = "astronomy")]
+pub mod astronomy;
+
+#[cfg(feature = "world")]
+pub mod lore;
+
 pub mod animation;
 pub mod archetype;
 pub mod asset;
