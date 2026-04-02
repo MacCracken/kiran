@@ -1,7 +1,8 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use kiran::World;
 use kiran::personality::{MoodStimulus, Personality, decay_all_moods, process_mood_stimuli};
 use kiran::world::EventBus;
+use std::hint::black_box;
 
 fn bench_personality(c: &mut Criterion) {
     let mut group = c.benchmark_group("personality");

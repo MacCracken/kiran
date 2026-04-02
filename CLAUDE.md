@@ -5,7 +5,7 @@
 **Kiran** (Sanskrit: ray of light) — AI-native game engine — ECS, game loop, scene, audio, physics, rendering, scripting, multiplayer, profiling, asset pipeline
 
 - **Type**: Flat crate with binary (CLI)
-- **License**: GPL-3.0
+- **License**: GPL-3.0-only
 - **Version**: 0.26.3
 
 ## Consumers
@@ -92,7 +92,7 @@ Root files (required):
   CONTRIBUTING.md    — fork, branch, make check, PR workflow
   SECURITY.md        — supported versions, scope, reporting
   CODE_OF_CONDUCT.md — Contributor Covenant
-  LICENSE            — GPL-3.0
+  LICENSE            — GPL-3.0-only
 
 docs/ (required):
   architecture/

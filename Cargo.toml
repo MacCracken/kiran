@@ -2,7 +2,7 @@
 name = "kiran"
 version = "0.26.3"
 edition = "2024"
-license = "GPL-3.0"
+license = "GPL-3.0-only"
 description = "Kiran — AI-native game engine for AGNOS"
 homepage = "https://github.com/MacCracken/kiran"
 repository = "https://github.com/MacCracken/kiran"
@@ -14,25 +14,40 @@ exclude = [".claude/", ".github/", "docs/", "scripts/"]
 
 [features]
 default = []
-ai = ["dep:hoosh", "dep:reqwest", "dep:tokio"]
-audio = ["dep:dhvani"]
+
+# --- Engine core ---
+rendering = ["dep:soorat", "dep:prakash", "dep:ranga"]
+audio = ["dep:dhvani", "dep:naad", "dep:shravan", "dep:goonj", "dep:garjan", "dep:ghurni"]
+voice = ["dep:svara", "dep:shabda", "dep:prani"]
 physics = ["dep:impetus"]
 physics-3d = ["physics", "impetus/3d"]
-rendering = ["dep:soorat"]
+fluids = ["dep:pravash"]
+dynamics = ["dep:bijli", "dep:dravya", "dep:ushma", "dep:pavan"]
+ai = ["dep:hoosh", "dep:reqwest", "dep:tokio"]
+behavior = ["dep:bhava", "dep:bodh", "dep:mastishk", "dep:jantu"]
 scripting = ["dep:kavach", "dep:tokio"]
 multiplayer = ["dep:majra"]
-personality = ["dep:bhava"]
 navigation = ["dep:raasta"]
-fluids = ["dep:pravash"]
-acoustics = ["dep:goonj"]
-full = ["ai", "audio", "physics", "rendering", "scripting", "multiplayer", "personality", "navigation", "fluids", "acoustics"]
+
+# --- Science ---
+biology = ["dep:sharira", "dep:jivanu", "dep:rasayan", "dep:vanaspati"]
+chemistry = ["dep:kimiya", "dep:khanij", "dep:tanmatra", "dep:kana"]
+astronomy = ["dep:falak", "dep:jyotish", "dep:tara", "dep:brahmanda", "dep:badal"]
+world = ["dep:itihas", "dep:sankhya", "dep:varna", "dep:pramana"]
+
+# --- Meta ---
+full = [
+    "rendering", "audio", "voice", "physics", "fluids", "dynamics",
+    "ai", "behavior", "scripting", "multiplayer", "navigation",
+    "biology", "chemistry", "astronomy", "world",
+]
 
 [dependencies]
 # Core — hisab re-exports glam types (Vec3, Mat4, Quat, etc.)
-hisab = "1.1"
+hisab = "1.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-toml = "0.8"
+toml = "1.1"
 anyhow = "1"
 thiserror = "2"
 tracing = "0.1"
@@ -42,40 +57,83 @@ crossbeam-channel = "0.5"
 clap = { version = "4", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# AI (optional)
-hoosh = { version = "0.23", optional = true }
-reqwest = { version = "0.12", features = ["json"], optional = true }
-tokio = { version = "1", features = ["full"], optional = true }
+# Rendering (optional)
+soorat = { version = "1.0", default-features = false, optional = true }
+prakash = { version = "1.2", optional = true }
+ranga = { version = "0.29", optional = true }
 
 # Audio (optional)
-dhvani = { version = "0.22", optional = true }
+dhvani = { version = "1.1", optional = true }
+naad = { version = "1.0", optional = true }
+shravan = { version = "1.0", optional = true }
+goonj = { version = "1.1", features = ["kiran-compat"], default-features = false, optional = true }
+garjan = { version = "1.1", optional = true }
+ghurni = { version = "1.0", optional = true }
+
+# Voice (optional)
+svara = { version = "2.0", optional = true }
+shabda = { version = "2.0", optional = true }
+prani = { version = "1.1", optional = true }
 
 # Physics (optional)
-impetus = { version = "1.1", optional = true }
+impetus = { version = "1.3", optional = true }
+
+# Fluids (optional)
+pravash = { version = "1.2", default-features = false, features = ["sph", "shallow"], optional = true }
+
+# Dynamics (optional)
+bijli = { version = "1.1", optional = true }
+dravya = { version = "1.2", optional = true }
+ushma = { version = "1.3", optional = true }
+pavan = { version = "1.1", optional = true }
+
+# AI (optional)
+hoosh = { version = "1.1", optional = true }
+reqwest = { version = "0.13", features = ["json"], optional = true }
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Behavior (optional)
+bhava = { version = "2.0", optional = true }
+bodh = { version = "1.0", optional = true }
+mastishk = { version = "1.1", optional = true }
+jantu = { version = "1.1", optional = true }
 
 # Scripting (optional)
 kavach = { version = "1.0.1", features = ["wasm"], default-features = false, optional = true }
 
-# Personality (optional)
-bhava = { version = "0.23", optional = true }
-
 # Multiplayer (optional)
-majra = { version = "0.22", optional = true }
-
-# Acoustics (optional)
-goonj = { version = "1.0", features = ["kiran-compat"], default-features = false, optional = true }
+majra = { version = "1.0", optional = true }
 
 # Navigation (optional)
-raasta = { version = "0.24", optional = true }
+raasta = { version = "1.0", optional = true }
 
-# Fluids (optional)
-pravash = { version = "1.1", default-features = false, features = ["sph", "shallow"], optional = true }
+# Biology (optional)
+sharira = { version = "1.1", optional = true }
+jivanu = { version = "1.0", optional = true }
+rasayan = { version = "1.0", optional = true }
+vanaspati = { version = "1.0", optional = true }
 
-# Rendering (optional)
-soorat = { version = "0.24", default-features = false, optional = true }
+# Chemistry (optional)
+kimiya = { version = "1.1", optional = true }
+khanij = { version = "1.1", optional = true }
+tanmatra = { version = "1.2", optional = true }
+kana = { version = "1.1", optional = true }
+
+# Astronomy (optional)
+falak = { version = "1.0", optional = true }
+jyotish = { version = "1.0", optional = true }
+tara = { version = "1.0", optional = true }
+brahmanda = { version = "1.0", optional = true }
+badal = { version = "1.1", optional = true }
+
+# World (optional)
+itihas = { version = "1.0", optional = true }
+sankhya = { version = "2.0", optional = true }
+varna = { version = "1.0", optional = true }
+pramana = { version = "1.2", optional = true }
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [[bench]]
 name = "engine"
@@ -85,4 +143,4 @@ required-features = ["rendering"]
 [[bench]]
 name = "personality"
 harness = false
-required-features = ["personality"]
+required-features = ["behavior"]

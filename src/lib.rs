@@ -14,7 +14,7 @@ pub mod ai;
 #[cfg(feature = "audio")]
 pub mod audio;
 
-#[cfg(feature = "personality")]
+#[cfg(feature = "behavior")]
 pub mod personality;
 
 #[cfg(feature = "physics")]
@@ -29,7 +29,7 @@ pub mod net;
 #[cfg(feature = "fluids")]
 pub mod fluids;
 
-#[cfg(feature = "acoustics")]
+#[cfg(feature = "audio")]
 pub mod acoustics;
 
 pub mod animation;

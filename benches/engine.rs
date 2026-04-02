@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use kiran::World;
 use kiran::input::{InputEvent, InputState, KeyCode, MouseButton};
 use kiran::reload::apply_scene_diff;
@@ -9,6 +9,7 @@ use kiran::render::{
 use kiran::scene::{Name, Position, load_scene, spawn_scene};
 use kiran::script::{Script, ScriptEngine, ScriptMessage};
 use kiran::world::{EventBus, FnSystem, GameClock, Scheduler, SystemStage};
+use std::hint::black_box;
 
 // ---------------------------------------------------------------------------
 // ECS world operations
