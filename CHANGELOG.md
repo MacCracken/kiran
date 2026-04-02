@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [1.0.0] - 2026-04-01
 
 ### Added
 
@@ -39,9 +39,10 @@ All notable changes to this project will be documented in this file.
 
 #### Infrastructure
 - Fuzz testing: 4 targets (scene loading, world operations, input, asset paths)
-- Supply-chain verification via cargo-vet
-- 4 new benchmark suites (dynamics, biology, science, voice)
-- README badges (crates.io, docs.rs, CI, license)
+- Supply-chain verification via cargo-vet (`supply-chain/` + Makefile `vet` target)
+- 4 new benchmark suites (dynamics, biology, science, voice) — 8 total
+- README rewritten with badges, full architecture tree, 16-gate feature table
+- Architecture overview updated for all 28 modules and 46 deps
 
 ### Changed
 - **license** — GPL-3.0 → GPL-3.0-only (SPDX-correct) across Cargo.toml, README, CLAUDE.md, deny.toml
@@ -66,10 +67,12 @@ All notable changes to this project will be documented in this file.
 - **network** — message field validation (node ID length, entity list size, payload size)
 - **network** — documented authentication requirements for PlayerJoin/PlayerLeave
 
-### Performance
-- 84.03% test coverage (2237/2662 lines)
+### Quality
+- 84.03% test coverage (2237/2662 lines) — above 80% target
 - 587 unit tests + 27 doc tests — 0 failures
 - 8 benchmark suites across all feature domains
+- All 16 feature gates compile independently — zero cross-gate leaks
+- Clean: fmt, clippy (-D warnings), docs (-W missing_docs), deny, audit
 
 ## [0.26.3] - 2026-03-26
 

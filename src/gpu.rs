@@ -99,9 +99,259 @@ pub use ranga::transform;
 /// Pixel format conversion (BT.601/709/2020, ARGB↔NV12).
 pub use ranga::convert;
 
+/// ICC color profile parsing (v2/v4, tone curves, embedded sRGB).
+pub use ranga::icc;
+
 pub use ranga::RangaError;
 
 use crate::render::{Camera, DrawCommand, MeshDesc, RenderConfig, Renderer};
+use serde::{Deserialize, Serialize};
+
+// ---------------------------------------------------------------------------
+// Texture processing pipeline
+// ---------------------------------------------------------------------------
+
+/// A filter operation in a texture processing pipeline.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TextureFilter {
+    /// Brightness offset (-1.0 to 1.0).
+    Brightness(f32),
+    /// Contrast multiplier (1.0 = unchanged).
+    Contrast(f32),
+    /// Saturation multiplier (0.0 = grayscale, 1.0 = unchanged).
+    Saturation(f32),
+    /// Hue rotation in degrees.
+    HueShift(f32),
+    /// Convert to grayscale (BT.709 luminance).
+    Grayscale,
+    /// Invert colors.
+    Invert,
+    /// Gaussian blur with the given radius.
+    GaussianBlur(u32),
+    /// Unsharp mask sharpening.
+    Sharpen {
+        /// Sharpening strength.
+        amount: f32,
+        /// Blur radius for the unsharp mask.
+        radius: u32,
+    },
+    /// Vignette darkening at edges (0.0–1.0).
+    Vignette(f32),
+    /// Vibrance (selective saturation boost).
+    Vibrance(f32),
+}
+
+/// Texture processor — applies a chain of filters to a pixel buffer.
+///
+/// Attach to an entity alongside a texture asset to process it at load time,
+/// or use standalone for runtime texture manipulation.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "rendering")] {
+/// use kiran::gpu::{TextureProcessor, TextureFilter};
+///
+/// let proc = TextureProcessor::new()
+///     .push(TextureFilter::Brightness(0.1))
+///     .push(TextureFilter::Contrast(1.2))
+///     .push(TextureFilter::Sharpen { amount: 0.5, radius: 1 });
+/// assert_eq!(proc.len(), 3);
+/// # }
+/// ```
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TextureProcessor {
+    /// Ordered list of filters to apply.
+    pub filters: Vec<TextureFilter>,
+}
+
+impl TextureProcessor {
+    /// Create an empty texture processor.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Append a filter to the pipeline.
+    pub fn push(mut self, filter: TextureFilter) -> Self {
+        self.filters.push(filter);
+        self
+    }
+
+    /// Number of filters in the pipeline.
+    #[must_use]
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.filters.len()
+    }
+
+    /// Whether the pipeline is empty.
+    #[must_use]
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.filters.is_empty()
+    }
+
+    /// Apply the filter pipeline to a pixel buffer (CPU path).
+    pub fn apply(&self, buf: &mut PixelBuffer) -> Result<(), RangaError> {
+        for f in &self.filters {
+            match f {
+                TextureFilter::Brightness(v) => filter::brightness(buf, *v)?,
+                TextureFilter::Contrast(v) => filter::contrast(buf, *v)?,
+                TextureFilter::Saturation(v) => filter::saturation(buf, *v)?,
+                TextureFilter::HueShift(deg) => filter::hue_shift(buf, *deg)?,
+                TextureFilter::Grayscale => filter::grayscale(buf)?,
+                TextureFilter::Invert => filter::invert(buf)?,
+                TextureFilter::GaussianBlur(r) => {
+                    *buf = filter::gaussian_blur(buf, *r)?;
+                }
+                TextureFilter::Sharpen { amount, radius } => {
+                    *buf = filter::unsharp_mask(buf, *radius, *amount)?;
+                }
+                TextureFilter::Vignette(s) => filter::vignette(buf, *s)?,
+                TextureFilter::Vibrance(v) => filter::vibrance(buf, *v)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Color grading
+// ---------------------------------------------------------------------------
+
+/// Color grading settings for post-processing.
+///
+/// Controls exposure, temperature, hue, and saturation for cinematic visuals.
+/// Can be attached as an ECS resource or per-camera component.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ColorGrading {
+    /// Exposure adjustment in stops (-5.0 to 5.0).
+    pub exposure: f32,
+    /// Hue rotation in degrees.
+    pub hue_shift: f32,
+    /// Saturation multiplier (0.0 = grayscale, 1.0 = unchanged).
+    pub saturation: f32,
+    /// Vibrance (selective saturation, less aggressive than saturation).
+    pub vibrance: f32,
+    /// Brightness offset (-1.0 to 1.0).
+    pub brightness: f32,
+    /// Contrast multiplier.
+    pub contrast: f32,
+    /// Vignette strength (0.0 = none).
+    pub vignette: f32,
+}
+
+impl Default for ColorGrading {
+    fn default() -> Self {
+        Self {
+            exposure: 0.0,
+            hue_shift: 0.0,
+            saturation: 1.0,
+            vibrance: 0.0,
+            brightness: 0.0,
+            contrast: 1.0,
+            vignette: 0.0,
+        }
+    }
+}
+
+impl ColorGrading {
+    /// Create neutral color grading (no adjustments).
+    pub fn neutral() -> Self {
+        Self::default()
+    }
+
+    /// Apply this grading to a pixel buffer.
+    pub fn apply(&self, buf: &mut PixelBuffer) -> Result<(), RangaError> {
+        if (self.brightness).abs() > f32::EPSILON {
+            filter::brightness(buf, self.brightness)?;
+        }
+        if (self.contrast - 1.0).abs() > f32::EPSILON {
+            filter::contrast(buf, self.contrast)?;
+        }
+        if (self.saturation - 1.0).abs() > f32::EPSILON {
+            filter::saturation(buf, self.saturation)?;
+        }
+        if (self.vibrance).abs() > f32::EPSILON {
+            filter::vibrance(buf, self.vibrance)?;
+        }
+        if (self.hue_shift).abs() > f32::EPSILON {
+            filter::hue_shift(buf, self.hue_shift)?;
+        }
+        if self.vignette > f32::EPSILON {
+            filter::vignette(buf, self.vignette)?;
+        }
+        Ok(())
+    }
+
+    /// Whether all settings are at neutral (no-op).
+    #[must_use]
+    pub fn is_neutral(&self) -> bool {
+        (self.exposure).abs() < f32::EPSILON
+            && (self.hue_shift).abs() < f32::EPSILON
+            && (self.saturation - 1.0).abs() < f32::EPSILON
+            && (self.vibrance).abs() < f32::EPSILON
+            && (self.brightness).abs() < f32::EPSILON
+            && (self.contrast - 1.0).abs() < f32::EPSILON
+            && self.vignette < f32::EPSILON
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Screen capture analysis
+// ---------------------------------------------------------------------------
+
+/// Histogram analysis of a captured frame.
+///
+/// Use for performance debugging, QA validation, or adaptive rendering.
+#[derive(Debug, Clone)]
+pub struct FrameHistogram {
+    /// Luminance histogram (256 bins, normalized 0.0–1.0).
+    pub luminance: Vec<f64>,
+    /// Per-channel RGB histograms (256 bins each).
+    pub red: Vec<f64>,
+    /// Green channel histogram.
+    pub green: Vec<f64>,
+    /// Blue channel histogram.
+    pub blue: Vec<f64>,
+}
+
+impl FrameHistogram {
+    /// Compute histograms from a pixel buffer.
+    pub fn from_buffer(buf: &PixelBuffer) -> Result<Self, RangaError> {
+        let luminance = histogram::luminance_histogram(buf, 256)?;
+        let [red, green, blue] = histogram::rgb_histograms(buf)?;
+        Ok(Self {
+            luminance,
+            red,
+            green,
+            blue,
+        })
+    }
+
+    /// Average luminance (0.0 = black, 1.0 = white).
+    #[must_use]
+    pub fn average_luminance(&self) -> f64 {
+        self.luminance
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| (i as f64 / 255.0) * v)
+            .sum()
+    }
+
+    /// Whether the frame is predominantly dark (avg luminance < 0.2).
+    #[must_use]
+    pub fn is_underexposed(&self) -> bool {
+        self.average_luminance() < 0.2
+    }
+
+    /// Whether the frame is predominantly bright (avg luminance > 0.8).
+    #[must_use]
+    pub fn is_overexposed(&self) -> bool {
+        self.average_luminance() > 0.8
+    }
+}
 
 // ---------------------------------------------------------------------------
 // SooratRenderer — bridges soorat with kiran's Renderer trait

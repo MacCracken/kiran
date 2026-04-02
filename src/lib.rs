@@ -37,6 +37,9 @@ pub mod acoustics;
 #[cfg(feature = "voice")]
 pub mod voice;
 
+#[cfg(feature = "media")]
+pub mod media;
+
 #[cfg(feature = "dynamics")]
 pub mod dynamics;
 

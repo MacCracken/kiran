@@ -1,6 +1,6 @@
 [package]
 name = "kiran"
-version = "0.26.3"
+version = "1.0.0"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "Kiran — AI-native game engine for AGNOS"
@@ -28,6 +28,7 @@ behavior = ["dep:bhava", "dep:bodh", "dep:mastishk", "dep:jantu"]
 scripting = ["dep:kavach", "dep:tokio"]
 multiplayer = ["dep:majra"]
 navigation = ["dep:raasta"]
+media = ["dep:tarang"]
 
 # --- Science ---
 biology = ["dep:sharira", "dep:jivanu", "dep:rasayan", "dep:vanaspati"]
@@ -38,7 +39,7 @@ world = ["dep:itihas", "dep:sankhya", "dep:varna", "dep:pramana"]
 # --- Meta ---
 full = [
     "rendering", "audio", "voice", "physics", "fluids", "dynamics",
-    "ai", "behavior", "scripting", "multiplayer", "navigation",
+    "ai", "behavior", "scripting", "multiplayer", "navigation", "media",
     "biology", "chemistry", "astronomy", "world",
 ]
 
@@ -60,7 +61,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Rendering (optional)
 soorat = { version = "1.0", default-features = false, optional = true }
 prakash = { version = "1.2", features = ["pbr", "atmosphere"], optional = true }
-ranga = { version = "0.29", optional = true }
+ranga = { version = "1.0", optional = true }
 
 # Audio (optional)
 dhvani = { version = "1.1", optional = true }
@@ -106,6 +107,9 @@ majra = { version = "1.0", optional = true }
 
 # Navigation (optional)
 raasta = { version = "1.0", optional = true }
+
+# Media (optional)
+tarang = { version = "0.21", optional = true }
 
 # Biology (optional)
 sharira = { version = "1.1", optional = true }
