@@ -18,6 +18,7 @@ allow = [
     "MPL-2.0",
     "Unicode-3.0",
     "Unicode-DFS-2016",
+    "CDLA-Permissive-2.0",
     "GPL-3.0-only",
     "AGPL-3.0-only",
 ]
