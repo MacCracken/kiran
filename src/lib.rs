@@ -1,7 +1,9 @@
 //! Kiran — AI-native game engine for AGNOS
 //!
-//! Modular game engine built in Rust. Composes AGNOS shared crates for
-//! physics (impetus), math (hisab), audio (dhvani), and rendering (soorat).
+//! Modular game engine built in Rust. Composes 46 optional AGNOS crates across
+//! 16 feature gates: rendering, audio, voice, physics, fluids, dynamics, ai,
+//! behavior, scripting, multiplayer, navigation, biology, chemistry, astronomy,
+//! world, and `full` (all of the above). Core math provided by hisab.
 
 pub mod input;
 pub mod render;
