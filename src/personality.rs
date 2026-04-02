@@ -1,11 +1,100 @@
-//! NPC personality and emotion via bhava
+//! NPC behavior via bhava, bodh, mastishk, and jantu
 //!
-//! Provides ECS components for NPC personality traits and emotional state:
+//! Bridges the AGNOS behavior stack with kiran's ECS:
+//! - **bhava** — Personality traits and emotional state
+//! - **bodh** — Psychology (cognition, perception, learning, decision-making)
+//! - **mastishk** — Computational neuroscience (neurotransmitters, sleep, HPA axis)
+//! - **jantu** — Ethology (instincts, survival, social dynamics, swarm intelligence)
+//!
+//! Core types:
 //! - [`Personality`] component wrapping bhava PersonalityProfile + MoodVector
+//! - [`Cognition`] component for perception, memory, and decision-making
+//! - [`NeuralState`] component for neuroscience-driven behavior
+//! - [`CreatureBehavior`] component for instinct-driven creatures
 //! - Mood stimulus system for event-driven emotion changes
-//! - Behavioral prompt generation for AI-driven NPCs
 
 use crate::world::{Entity, EventBus, World};
+
+// ---------------------------------------------------------------------------
+// bodh — psychology
+// ---------------------------------------------------------------------------
+
+/// Attention (Posner cueing, attentional blink).
+pub use bodh::attention;
+/// Bayesian reasoning (belief updating, base rate neglect).
+pub use bodh::bayesian;
+/// Cognitive processes (working memory, dual-process theory).
+pub use bodh::cognition as bodh_cognition;
+/// Decision-making (prospect theory, bounded rationality).
+pub use bodh::decision;
+/// Emotion models (Russell circumplex, appraisal, regulation).
+pub use bodh::emotion as bodh_emotion;
+/// Learning models (Ebbinghaus forgetting curve, conditioning).
+pub use bodh::learning;
+/// Memory models (ACT-R activation, spreading activation).
+pub use bodh::memory;
+/// Motivation (self-determination theory, flow state).
+pub use bodh::motivation;
+/// Perception (signal detection theory).
+pub use bodh::perception;
+/// Psychophysics (Weber-Fechner law, Fitts' law, Hick's law).
+pub use bodh::psychophysics;
+/// Social psychology (conformity, attribution, social impact).
+pub use bodh::social;
+/// Stress models (transactional stress, coping).
+pub use bodh::stress;
+
+// ---------------------------------------------------------------------------
+// mastishk — computational neuroscience
+// ---------------------------------------------------------------------------
+
+/// Autonomic nervous system (sympathetic/parasympathetic, HRV).
+pub use mastishk::autonomic;
+/// Brain state integration (central tick, age profiles, interoception).
+pub use mastishk::brain;
+/// Bridge types for downstream consumers.
+pub use mastishk::bridge as neuro_bridge;
+/// Chronobiology (circadian pacemaker, melatonin, cortisol awakening).
+pub use mastishk::chronobiology;
+/// Neural circuit models (rate populations, Hebbian plasticity).
+pub use mastishk::circuit;
+/// Cross-module coupling functions.
+pub use mastishk::coupling;
+/// HPA axis (CRH → ACTH → cortisol cascade, allostatic load).
+pub use mastishk::hpa;
+/// Neurotransmitter dynamics (dopamine, serotonin, norepinephrine, etc.).
+pub use mastishk::neurotransmitter;
+/// Receptor subtypes and desensitization.
+pub use mastishk::receptor;
+/// Brain region models (PFC, amygdala, hippocampus, basal ganglia).
+pub use mastishk::regions;
+/// Sleep models (Borbely two-process, ultradian cycles).
+pub use mastishk::sleep;
+
+// ---------------------------------------------------------------------------
+// jantu — ethology / creature behavior
+// ---------------------------------------------------------------------------
+
+/// Foraging strategies (optimal foraging, prey selection).
+pub use jantu::foraging;
+/// Habituation and sensitization.
+pub use jantu::habituation;
+/// Core instinct system (drives, priority weights).
+pub use jantu::instinct;
+/// Migration patterns.
+pub use jantu::migration;
+/// Pack behavior (hunting, food sharing).
+pub use jantu::pack;
+/// Signal communication (alarm calls, displays).
+pub use jantu::signals;
+/// Social dynamics (hierarchy, roles, group cohesion).
+pub use jantu::social as jantu_social;
+/// Survival state and threat response.
+pub use jantu::survival;
+/// Swarm intelligence (pheromone trails, quorum sensing).
+pub use jantu::swarm;
+/// Territory marking and defense.
+pub use jantu::territory;
 
 /// NPC personality and emotional state component.
 pub struct Personality {
@@ -117,6 +206,141 @@ pub fn decay_all_moods(world: &mut World, factor: f32) {
         if let Some(personality) = world.get_component_mut::<Personality>(entity) {
             personality.decay_mood(factor);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Cognition component (bodh)
+// ---------------------------------------------------------------------------
+
+/// Cognitive state for an NPC — perception, memory saliency, and decision confidence.
+///
+/// Wraps bodh's psychology functions into per-entity state that systems can
+/// query and update each frame.
+#[derive(Debug, Clone)]
+pub struct Cognition {
+    /// Working memory load (0.0 = free, 1.0 = saturated).
+    pub memory_load: f32,
+    /// Attention focus level (0.0 = distracted, 1.0 = fully focused).
+    pub attention: f32,
+    /// Current stress level (0.0 = calm, 1.0 = overwhelmed).
+    pub stress: f32,
+    /// Learning rate modifier (higher = faster skill acquisition).
+    pub learning_rate: f32,
+    /// Whether this NPC is actively processing cognitive tasks.
+    pub active: bool,
+}
+
+impl Cognition {
+    /// Create a new cognition component with neutral defaults.
+    pub fn new() -> Self {
+        Self {
+            memory_load: 0.0,
+            attention: 1.0,
+            stress: 0.0,
+            learning_rate: 1.0,
+            active: true,
+        }
+    }
+
+    /// Apply Hick's law: decision time increases with number of choices.
+    /// The `b` parameter scales the log term (typical ~0.155 seconds).
+    #[must_use]
+    #[inline]
+    pub fn decision_time(&self, num_choices: usize, b: f64) -> Option<f64> {
+        psychophysics::hicks_law(num_choices, b).ok()
+    }
+
+    /// Apply Fitts' law: movement time for a target at given distance and width.
+    #[must_use]
+    #[inline]
+    pub fn movement_time(&self, distance: f64, width: f64) -> Option<f64> {
+        psychophysics::fitts_law(distance, width).ok()
+    }
+
+    /// Apply Ebbinghaus forgetting: retention after elapsed time with given stability.
+    #[must_use]
+    #[inline]
+    pub fn retention(&self, elapsed_hours: f64, stability: f64) -> Option<f64> {
+        learning::ebbinghaus_forgetting(elapsed_hours, stability).ok()
+    }
+}
+
+impl Default for Cognition {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Neural state component (mastishk)
+// ---------------------------------------------------------------------------
+
+/// Neuroscience-driven brain state for an NPC.
+///
+/// Wraps mastishk's `BrainState` for tick-based neural simulation.
+/// The brain state drives neurotransmitter levels, sleep pressure,
+/// cortisol response, and autonomic tone — which feed back into
+/// mood and behavior via the bridge output.
+pub struct NeuralState {
+    /// The underlying mastishk brain state.
+    pub brain: brain::BrainState,
+    /// Whether this neural simulation is active.
+    pub active: bool,
+}
+
+impl NeuralState {
+    /// Create a new neural state.
+    pub fn new() -> Self {
+        Self {
+            brain: brain::BrainState::default(),
+            active: true,
+        }
+    }
+}
+
+impl Default for NeuralState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Creature behavior component (jantu)
+// ---------------------------------------------------------------------------
+
+/// Instinct-driven behavior state for a creature entity.
+///
+/// Wraps jantu's instinct system for drive-based creature AI.
+/// Each creature has a set of drives (hunger, thirst, fear, mating, etc.)
+/// that compete for behavioral priority.
+#[derive(Debug, Clone)]
+pub struct CreatureBehavior {
+    /// The creature's instinct state (drives and priority weights).
+    pub instincts: instinct::Instinct,
+    /// Current survival state.
+    pub survival: survival::SurvivalState,
+    /// Social hierarchy position.
+    pub hierarchy: jantu_social::HierarchyPosition,
+    /// Whether this creature is actively processing behavior.
+    pub active: bool,
+}
+
+impl CreatureBehavior {
+    /// Create a new creature behavior with the given instinct type.
+    pub fn new(instinct_type: instinct::InstinctType) -> Self {
+        Self {
+            instincts: instinct::Instinct::new(instinct_type),
+            survival: survival::SurvivalState::Stable,
+            hierarchy: jantu_social::HierarchyPosition::new(0.5),
+            active: true,
+        }
+    }
+}
+
+impl Default for CreatureBehavior {
+    fn default() -> Self {
+        Self::new(instinct::InstinctType::Curiosity)
     }
 }
 
