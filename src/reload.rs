@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+use crate::asset::validate_asset_path;
 use crate::scene::{
     LightComponent, Material, Name, Position, SceneDefinition, Tags, load_scene, spawn_entity_def,
     spawn_scene,
@@ -30,9 +31,14 @@ impl FileWatcher {
         Self::default()
     }
 
-    /// Start watching a file. Returns Err if the file doesn't exist.
+    /// Start watching a file. Returns Err if the file doesn't exist or fails path validation.
     pub fn watch(&mut self, path: impl AsRef<Path>) -> std::io::Result<()> {
-        let path = path.as_ref().to_path_buf();
+        let path = validate_asset_path(path.as_ref()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("rejected path with traversal: {}", path.as_ref().display()),
+            )
+        })?;
         let modified = std::fs::metadata(&path)?.modified()?;
         self.watched.insert(path, modified);
         Ok(())
@@ -91,12 +97,19 @@ impl SceneReloader {
     }
 
     /// Load a scene and start watching it for changes.
+    ///
+    /// Returns an error if the path fails traversal validation.
     pub fn load_and_watch(
         &mut self,
         path: impl AsRef<Path>,
         world: &mut World,
     ) -> Result<Vec<crate::world::Entity>, KiranError> {
-        let path = path.as_ref().to_path_buf();
+        let path = validate_asset_path(path.as_ref()).ok_or_else(|| {
+            KiranError::Scene(format!(
+                "rejected scene path with traversal: {}",
+                path.as_ref().display()
+            ))
+        })?;
         let toml_str = std::fs::read_to_string(&path)
             .map_err(|e| KiranError::Scene(format!("failed to read {}: {}", path.display(), e)))?;
         let scene = load_scene(&toml_str)?;

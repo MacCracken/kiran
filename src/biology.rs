@@ -180,7 +180,20 @@ pub enum PhysiologyGait {
 
 impl Physiology {
     /// Create a new physiology component.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "biology")] {
+    /// use kiran::biology::Physiology;
+    ///
+    /// let phys = Physiology::new(70.0);
+    /// assert_eq!(phys.mass, 70.0);
+    /// assert!(phys.active);
+    /// # }
+    /// ```
     pub fn new(mass: f32) -> Self {
+        tracing::trace!(mass, "created physiology");
         Self {
             gait_type: PhysiologyGait::Walk,
             speed: 0.0,
@@ -241,9 +254,26 @@ pub enum MicrobePhase {
 
 impl Microbe {
     /// Create a new microbial population.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "biology")] {
+    /// use kiran::biology::Microbe;
+    ///
+    /// let colony = Microbe::new("E. coli", 1000.0, 1e9);
+    /// assert_eq!(colony.species, "E. coli");
+    /// assert!(colony.active);
+    /// # }
+    /// ```
     pub fn new(species: impl Into<String>, population: f64, carrying_capacity: f64) -> Self {
+        let species = species.into();
+        tracing::trace!(
+            %species, population, carrying_capacity,
+            "created microbe"
+        );
         Self {
-            species: species.into(),
+            species,
             population,
             carrying_capacity,
             growth_rate: 0.5,
@@ -280,6 +310,18 @@ pub struct MetabolicProfile {
 
 impl MetabolicProfile {
     /// Create a new metabolic profile at homeostasis.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "biology")] {
+    /// use kiran::biology::MetabolicProfile;
+    ///
+    /// let profile = MetabolicProfile::new();
+    /// assert!(!profile.is_energy_crisis());
+    /// assert!(!profile.is_anaerobic());
+    /// # }
+    /// ```
     pub fn new() -> Self {
         Self {
             atp: 1.0,
@@ -361,9 +403,23 @@ pub enum PlantStage {
 
 impl PlantState {
     /// Create a new plant at the seed stage.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "biology")] {
+    /// use kiran::biology::{PlantState, PlantStage};
+    ///
+    /// let oak = PlantState::seed("Oak");
+    /// assert_eq!(oak.stage, PlantStage::Seed);
+    /// assert_eq!(oak.height, 0.0);
+    /// # }
+    /// ```
     pub fn seed(species: impl Into<String>) -> Self {
+        let species = species.into();
+        tracing::trace!(%species, "created plant seed");
         Self {
-            species: species.into(),
+            species,
             height: 0.0,
             stage: PlantStage::Seed,
             leaf_mass: 0.0,
@@ -376,8 +432,10 @@ impl PlantState {
 
     /// Create a mature plant at the vegetative stage.
     pub fn mature(species: impl Into<String>, height: f64) -> Self {
+        let species = species.into();
+        tracing::trace!(%species, height, "created mature plant");
         Self {
-            species: species.into(),
+            species,
             height,
             stage: PlantStage::Vegetative,
             leaf_mass: height * 0.1,

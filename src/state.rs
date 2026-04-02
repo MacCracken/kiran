@@ -23,6 +23,17 @@ pub struct StateMachine {
 
 impl StateMachine {
     /// Create a state machine with the given initial state.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::state::{StateMachine, NamedState};
+    ///
+    /// let mut sm = StateMachine::new(Box::new(NamedState("menu".into())));
+    /// let playing = sm.add_state(Box::new(NamedState("playing".into())));
+    /// assert_eq!(sm.current_name(), "menu");
+    /// assert_eq!(sm.state_count(), 2);
+    /// ```
     pub fn new(initial: Box<dyn GameState>) -> Self {
         Self {
             states: vec![initial],

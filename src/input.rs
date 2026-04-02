@@ -491,6 +491,17 @@ pub struct InputState {
 
 impl InputState {
     /// Create a new empty input state.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::input::{InputState, InputEvent, KeyCode};
+    ///
+    /// let mut input = InputState::new();
+    /// input.process_event(&InputEvent::KeyPressed(KeyCode::W));
+    /// assert!(input.is_key_pressed(KeyCode::W));
+    /// assert!(input.is_key_just_pressed(KeyCode::W));
+    /// ```
     pub fn new() -> Self {
         Self::default()
     }

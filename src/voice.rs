@@ -108,6 +108,18 @@ pub struct VoiceSource {
 
 impl VoiceSource {
     /// Create a new voice source with the given profile name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "voice")] {
+    /// use kiran::voice::VoiceSource;
+    ///
+    /// let voice = VoiceSource::new("narrator");
+    /// assert_eq!(voice.profile_name, "narrator");
+    /// assert_eq!(voice.rate, 1.0);
+    /// # }
+    /// ```
     pub fn new(profile_name: impl Into<String>) -> Self {
         Self {
             profile_name: profile_name.into(),
@@ -168,6 +180,18 @@ pub struct CreatureVoiceSource {
 
 impl CreatureVoiceSource {
     /// Create a new creature voice source for the given species.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "voice")] {
+    /// use kiran::voice::CreatureVoiceSource;
+    ///
+    /// let voice = CreatureVoiceSource::new("wolf");
+    /// assert_eq!(voice.species_name, "wolf");
+    /// assert!(!voice.vocalizing);
+    /// # }
+    /// ```
     pub fn new(species_name: impl Into<String>) -> Self {
         Self {
             species_name: species_name.into(),
@@ -256,10 +280,15 @@ pub fn process_speech_requests(world: &mut World) {
         bus.drain::<SpeechRequest>()
     };
 
+    let count = requests.len();
     for req in requests {
         if let Some(voice) = world.get_component_mut::<VoiceSource>(req.entity) {
             voice.speaking = true;
         }
+    }
+
+    if count > 0 {
+        tracing::info!(count, "processed speech requests");
     }
 }
 
@@ -272,10 +301,15 @@ pub fn process_vocalize_requests(world: &mut World) {
         bus.drain::<VocalizeRequest>()
     };
 
+    let count = requests.len();
     for req in requests {
         if let Some(voice) = world.get_component_mut::<CreatureVoiceSource>(req.entity) {
             voice.vocalizing = true;
         }
+    }
+
+    if count > 0 {
+        tracing::info!(count, "processed vocalize requests");
     }
 }
 

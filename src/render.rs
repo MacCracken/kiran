@@ -60,6 +60,16 @@ pub struct Camera {
     pub far: f32,
 }
 
+/// # Examples
+///
+/// ```
+/// use kiran::render::Camera;
+///
+/// let cam = Camera::default();
+/// let vp = cam.view_projection();
+/// // View-projection is a non-identity combined matrix
+/// assert_ne!(vp, hisab::Mat4::IDENTITY);
+/// ```
 impl Default for Camera {
     fn default() -> Self {
         Self {

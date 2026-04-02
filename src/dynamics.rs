@@ -129,7 +129,28 @@ pub struct EmField {
 
 impl EmField {
     /// Create a new EM field source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "dynamics")] {
+    /// use kiran::dynamics::EmField;
+    ///
+    /// let field = EmField::new([1.0, 0.0, 0.0], [0.0, 0.0, 0.5]);
+    /// assert!(field.active);
+    /// assert_eq!(field.electric[0], 1.0);
+    /// # }
+    /// ```
     pub fn new(electric: [f64; 3], magnetic: [f64; 3]) -> Self {
+        tracing::trace!(
+            electric_x = electric[0],
+            electric_y = electric[1],
+            electric_z = electric[2],
+            magnetic_x = magnetic[0],
+            magnetic_y = magnetic[1],
+            magnetic_z = magnetic[2],
+            "created EM field"
+        );
         Self {
             electric,
             magnetic,
@@ -178,6 +199,13 @@ pub struct MaterialBody {
 impl MaterialBody {
     /// Create a material body from basic properties.
     pub fn new(youngs_modulus: f64, poisson_ratio: f64, yield_strength: f64, density: f64) -> Self {
+        tracing::trace!(
+            youngs_modulus,
+            poisson_ratio,
+            yield_strength,
+            density,
+            "created material body"
+        );
         Self {
             youngs_modulus,
             poisson_ratio,
@@ -189,6 +217,18 @@ impl MaterialBody {
     }
 
     /// Create a steel material body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "dynamics")] {
+    /// use kiran::dynamics::MaterialBody;
+    ///
+    /// let steel = MaterialBody::steel();
+    /// assert_eq!(steel.youngs_modulus, 200e9);
+    /// assert!(!steel.is_failed());
+    /// # }
+    /// ```
     pub fn steel() -> Self {
         Self::new(200e9, 0.3, 250e6, 7850.0)
     }
@@ -248,7 +288,26 @@ pub enum ThermalPhase {
 
 impl ThermalBody {
     /// Create a new thermal body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "dynamics")] {
+    /// use kiran::dynamics::ThermalBody;
+    ///
+    /// let body = ThermalBody::new(300.0, 50.0, 500.0, 1.0);
+    /// assert_eq!(body.temperature, 300.0);
+    /// assert!(body.active);
+    /// # }
+    /// ```
     pub fn new(temperature: f64, conductivity: f64, specific_heat: f64, mass: f64) -> Self {
+        tracing::trace!(
+            temperature,
+            conductivity,
+            specific_heat,
+            mass,
+            "created thermal body"
+        );
         Self {
             temperature,
             conductivity,
@@ -270,6 +329,11 @@ impl ThermalBody {
         if self.mass > 0.0 && self.specific_heat > 0.0 {
             self.temperature += energy_joules / (self.mass * self.specific_heat);
         }
+        tracing::debug!(
+            energy = energy_joules,
+            new_temp = self.temperature,
+            "applied heat"
+        );
     }
 }
 
@@ -296,7 +360,20 @@ pub struct AeroSurface {
 
 impl AeroSurface {
     /// Create a new aerodynamic surface.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "dynamics")] {
+    /// use kiran::dynamics::AeroSurface;
+    ///
+    /// let wing = AeroSurface::new(16.0, 0.02, 8.0);
+    /// assert_eq!(wing.reference_area, 16.0);
+    /// assert!(wing.active);
+    /// # }
+    /// ```
     pub fn new(reference_area: f64, cd0: f64, aspect_ratio: f64) -> Self {
+        tracing::trace!(reference_area, cd0, aspect_ratio, "created aero surface");
         Self {
             reference_area,
             cd0,

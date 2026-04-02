@@ -164,6 +164,17 @@ impl Default for Transform {
 
 impl Transform {
     /// Create a transform with only a position (identity rotation, unit scale).
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::scene::Transform;
+    /// use hisab::Vec3;
+    ///
+    /// let t = Transform::from_position(Vec3::new(1.0, 2.0, 3.0));
+    /// assert_eq!(t.position, Vec3::new(1.0, 2.0, 3.0));
+    /// assert_eq!(t.scale, Vec3::ONE);
+    /// ```
     pub fn from_position(position: Vec3) -> Self {
         Self {
             position,
@@ -359,8 +370,27 @@ pub fn remove_parent(world: &mut World, child: Entity) {
 // Loading
 // ---------------------------------------------------------------------------
 
+/// Maximum allowed scene TOML input size (10 MB).
+const MAX_SCENE_TOML_SIZE: usize = 10 * 1024 * 1024;
+
 /// Parse a TOML string into a [`SceneDefinition`].
+///
+/// Rejects inputs larger than 10 MB to prevent resource exhaustion.
+/// The `toml` 1.x crate enforces a default recursion limit of 128, which
+/// provides adequate protection against deeply nested structures.
 pub fn load_scene(toml_str: &str) -> Result<SceneDefinition, KiranError> {
+    if toml_str.len() > MAX_SCENE_TOML_SIZE {
+        tracing::warn!(
+            size = toml_str.len(),
+            max = MAX_SCENE_TOML_SIZE,
+            "scene TOML input exceeds maximum allowed size"
+        );
+        return Err(KiranError::Scene(format!(
+            "scene TOML too large: {} bytes (max {} bytes)",
+            toml_str.len(),
+            MAX_SCENE_TOML_SIZE
+        )));
+    }
     toml::from_str(toml_str).map_err(|e| KiranError::Scene(e.to_string()))
 }
 

@@ -144,3 +144,23 @@ required-features = ["rendering"]
 name = "personality"
 harness = false
 required-features = ["behavior"]
+
+[[bench]]
+name = "dynamics"
+harness = false
+required-features = ["dynamics"]
+
+[[bench]]
+name = "biology"
+harness = false
+required-features = ["biology"]
+
+[[bench]]
+name = "science"
+harness = false
+required-features = ["chemistry", "astronomy", "world"]
+
+[[bench]]
+name = "voice_bench"
+harness = false
+required-features = ["voice"]

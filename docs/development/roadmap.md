@@ -21,28 +21,33 @@
 
 **Science:** biology, chemistry, astronomy, world
 
-## V1.0
+### V1.0 — Documentation / API Audit
 
-### Documentation / API Audit
+- [x] Doc comments on all public types, functions, fields, and variants (403 items)
+- [x] `RUSTDOCFLAGS="-D warnings -W missing_docs" cargo doc --all-features --no-deps` clean
+- [x] Doc tests on core engine APIs — World, Transform, AnimState, InputState, Camera, AssetRegistry, StateMachine
+- [x] Doc tests on all wiring modules — dynamics, biology, chemistry, astronomy, lore, voice, behavior
+- [x] 27 doc tests passing
+- [x] All integration modules wired (rendering, audio, voice, dynamics, behavior, biology, chemistry, astronomy, world)
+- [x] Tracing instrumentation on all modules
+- [x] Zero unwrap() in library code (only Mutex::lock in job pool)
+- [x] `#[non_exhaustive]` on all public enums
+- [x] Consistent API (naming, builders, error types)
 
-- [ ] Doc comments on all public types, functions, fields, and variants
-- [ ] `RUSTDOCFLAGS="-D warnings -W missing_docs" cargo doc --all-features --no-deps` clean
-- [ ] Doc tests on key APIs (World, Scheduler, AnimState, NavAgent, FluidSimulation)
-- [ ] API review — consistent naming, builder patterns, error types
+### V1.0 — Hardening
 
-### Integration Modules
+- [x] 84.03% test coverage (2237/2662 lines) — above 80% target
+- [x] 8 benchmark suites (engine, personality, dynamics, biology, science, voice)
+- [x] 587 unit tests + 27 doc tests — 0 failures
+- [x] `cargo audit` / `cargo deny` clean
+- [x] All 16 feature gates compile independently — zero cross-gate leaks
 
-- [ ] Wire new science crates into ECS (biology, chemistry, astronomy, world modules)
-- [ ] Wire dynamics crates into physics pipeline (bijli, dravya, ushma, pavan)
-- [ ] Wire voice crates into audio pipeline (svara, shabda, prani)
-- [ ] Wire rendering additions (prakash optics, ranga image processing)
+### V1.0 — Security Review
 
-### Hardening
-
-- [ ] 80%+ test coverage
-- [ ] Benchmark coverage for all hot paths
-- [ ] `cargo audit` / `cargo deny` clean
-- [ ] Security review (scripting sandbox, network protocol, asset loading)
+- [x] Scripting sandbox: path validation on WASM loading, bounded message buffers, documented memory limit upstream gap
+- [x] Asset loading: path traversal protection (canonicalization + cwd boundary), file size limits (256 MB), TOML input size limits (10 MB), symlink-aware validation
+- [x] Network protocol: bounded inbox/outbox (4096), bounded dedup set (16384 + auto-trim), message field validation (node ID, entity lists, payload size), documented authentication requirements
+- [x] Zero unsafe blocks in security-critical code
 
 ## Future Features (demand-gated)
 

@@ -10,6 +10,45 @@ use serde::{Deserialize, Serialize};
 
 use crate::reload::FileWatcher;
 
+/// Maximum allowed asset file size (256 MB).
+const MAX_ASSET_FILE_SIZE: u64 = 256 * 1024 * 1024;
+
+/// Validate that an asset path does not escape the working directory via traversal.
+///
+/// Rejects paths containing `..` components after canonicalization attempt.
+/// Returns the validated `PathBuf` or `None` if the path is suspicious.
+#[must_use]
+pub fn validate_asset_path(path: &Path) -> Option<PathBuf> {
+    // Check for ".." components in the raw path
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            tracing::warn!(
+                path = %path.display(),
+                "rejected asset path containing '..' traversal component"
+            );
+            return None;
+        }
+    }
+
+    // If the file exists, canonicalize and verify it stays under cwd
+    if let Ok(canonical) = path.canonicalize()
+        && let Ok(cwd) = std::env::current_dir()
+    {
+        let cwd_canonical = cwd.canonicalize().unwrap_or(cwd);
+        if !canonical.starts_with(&cwd_canonical) {
+            tracing::warn!(
+                path = %path.display(),
+                canonical = %canonical.display(),
+                cwd = %cwd_canonical.display(),
+                "rejected asset path that escapes working directory"
+            );
+            return None;
+        }
+    }
+
+    Some(path.to_path_buf())
+}
+
 /// A typed handle to a loaded asset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct AssetHandle(pub u64);
@@ -90,6 +129,17 @@ pub struct AssetRegistry {
 
 impl AssetRegistry {
     /// Create an empty asset registry.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::asset::{AssetRegistry, AssetType};
+    ///
+    /// let mut reg = AssetRegistry::new();
+    /// let handle = reg.register("textures/brick.png", AssetType::Texture);
+    /// assert!(handle.is_valid());
+    /// assert_eq!(reg.handle_for("textures/brick.png"), Some(handle));
+    /// ```
     pub fn new() -> Self {
         Self {
             path_to_handle: HashMap::new(),
@@ -101,8 +151,17 @@ impl AssetRegistry {
     }
 
     /// Register an asset and start watching it for changes.
+    ///
+    /// Returns [`AssetHandle::NONE`] if the path fails validation (e.g. contains
+    /// `..` traversal components or escapes the working directory).
     pub fn register(&mut self, path: impl AsRef<Path>, asset_type: AssetType) -> AssetHandle {
-        let path = path.as_ref().to_path_buf();
+        let raw_path = path.as_ref();
+
+        // Validate path against traversal attacks
+        let path = match validate_asset_path(raw_path) {
+            Some(p) => p,
+            None => return AssetHandle::NONE,
+        };
 
         // Return existing handle if already registered
         if let Some(&handle) = self.path_to_handle.get(&path) {
@@ -294,6 +353,28 @@ impl AsyncAssetLoader {
             }
 
             request.status = LoadStatus::Loading;
+
+            // Check file size before reading to prevent unbounded memory allocation
+            if let Ok(meta) = std::fs::metadata(&request.path)
+                && meta.len() > MAX_ASSET_FILE_SIZE
+            {
+                request.status = LoadStatus::Failed;
+                request.error = Some(format!(
+                    "asset file too large: {} bytes (max {} bytes)",
+                    meta.len(),
+                    MAX_ASSET_FILE_SIZE
+                ));
+                tracing::warn!(
+                    handle = request.handle.0,
+                    path = %request.path.display(),
+                    size = meta.len(),
+                    max = MAX_ASSET_FILE_SIZE,
+                    "asset exceeds maximum file size limit"
+                );
+                processed += 1;
+                continue;
+            }
+
             match std::fs::read(&request.path) {
                 Ok(data) => {
                     request.status = LoadStatus::Ready;

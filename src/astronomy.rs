@@ -153,9 +153,23 @@ pub struct CelestialBody {
 
 impl CelestialBody {
     /// Create a new celestial body in a circular orbit.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "astronomy")] {
+    /// use kiran::astronomy::CelestialBody;
+    ///
+    /// let earth = CelestialBody::circular("Earth", 5.972e24, 1.496e11);
+    /// assert_eq!(earth.eccentricity, 0.0);
+    /// assert!(earth.active);
+    /// # }
+    /// ```
     pub fn circular(name: impl Into<String>, mass: f64, radius: f64) -> Self {
+        let name = name.into();
+        tracing::trace!(%name, mass, radius, "created celestial body (circular)");
         Self {
-            name: name.into(),
+            name,
             mass,
             semi_major_axis: radius,
             eccentricity: 0.0,
@@ -172,8 +186,10 @@ impl CelestialBody {
         semi_major_axis: f64,
         eccentricity: f64,
     ) -> Self {
+        let name = name.into();
+        tracing::trace!(%name, mass, semi_major_axis, eccentricity, "created celestial body (elliptical)");
         Self {
-            name: name.into(),
+            name,
             mass,
             semi_major_axis,
             eccentricity,
@@ -238,7 +254,24 @@ pub enum WeatherCondition {
 
 impl WeatherZone {
     /// Create a clear-sky weather zone at standard conditions.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "astronomy")] {
+    /// use kiran::astronomy::{WeatherZone, WeatherCondition};
+    ///
+    /// let zone = WeatherZone::standard();
+    /// assert_eq!(zone.condition, WeatherCondition::Clear);
+    /// assert!((zone.temperature - 288.15).abs() < 0.01);
+    /// # }
+    /// ```
     pub fn standard() -> Self {
+        tracing::trace!(
+            temperature = 288.15,
+            pressure = 101325.0,
+            "created standard weather zone"
+        );
         Self {
             temperature: 288.15, // 15°C
             pressure: 101325.0,  // 1 atm

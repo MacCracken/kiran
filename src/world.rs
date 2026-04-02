@@ -204,6 +204,19 @@ impl Default for World {
 
 impl World {
     /// Create an empty world.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::World;
+    ///
+    /// let mut world = World::new();
+    /// let entity = world.spawn();
+    /// world.insert_component(entity, 42_u32).unwrap();
+    /// assert_eq!(world.entity_count(), 1);
+    /// let results = world.query::<u32>();
+    /// assert_eq!(results.len(), 1);
+    /// ```
     pub fn new() -> Self {
         Self {
             allocator: EntityAllocator::default(),

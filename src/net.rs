@@ -11,6 +11,23 @@ use serde::{Deserialize, Serialize};
 use crate::world::{Entity, World};
 
 // ---------------------------------------------------------------------------
+// Security limits
+// ---------------------------------------------------------------------------
+
+/// Maximum number of messages in the inbound queue before dropping.
+const MAX_INBOX_SIZE: usize = 4096;
+/// Maximum number of messages in the outbound queue before dropping.
+const MAX_OUTBOX_SIZE: usize = 4096;
+/// Maximum entries in the reliable-channel dedup set before automatic trimming.
+const MAX_DEDUP_ENTRIES: usize = 16_384;
+/// Maximum allowed length of a `NodeId` string.
+const MAX_NODE_ID_LEN: usize = 256;
+/// Maximum entities per snapshot or delta.
+const MAX_ENTITY_LIST_SIZE: usize = 10_000;
+/// Maximum input payload length (1 MB).
+const MAX_INPUT_PAYLOAD_LEN: usize = 1_048_576;
+
+// ---------------------------------------------------------------------------
 // Node identity
 // ---------------------------------------------------------------------------
 
@@ -66,11 +83,21 @@ pub enum NetMessage {
     /// Input from a client.
     InputReplication(InputMessage),
     /// Player joined.
+    ///
+    /// # Security
+    ///
+    /// This event is **NOT authenticated** at the network layer. The application
+    /// layer **MUST** verify the sender's identity before trusting the `node_id`.
     PlayerJoin {
         /// ID of the joining node.
         node_id: NodeId,
     },
     /// Player left.
+    ///
+    /// # Security
+    ///
+    /// This event is **NOT authenticated** at the network layer. The application
+    /// layer **MUST** verify the sender's identity before trusting the `node_id`.
     PlayerLeave {
         /// ID of the leaving node.
         node_id: NodeId,
@@ -117,6 +144,57 @@ pub struct InputMessage {
     pub tick: u64,
     /// Serialized input data.
     pub payload: String,
+}
+
+// ---------------------------------------------------------------------------
+// Message validation
+// ---------------------------------------------------------------------------
+
+/// Validate a network message against security limits.
+///
+/// Returns `Ok(())` if the message passes all checks, or an `Err` with a
+/// human-readable reason when a field exceeds its limit.
+fn validate_message(msg: &NetMessage) -> Result<(), &'static str> {
+    match msg {
+        NetMessage::StateSnapshot(snap) => {
+            if snap.entities.len() > MAX_ENTITY_LIST_SIZE {
+                return Err("snapshot entity count exceeds MAX_ENTITY_LIST_SIZE");
+            }
+            for state in &snap.entities {
+                if let Some(ref owner) = state.owner
+                    && owner.len() > MAX_NODE_ID_LEN
+                {
+                    return Err("entity owner NodeId exceeds MAX_NODE_ID_LEN");
+                }
+            }
+        }
+        NetMessage::StateDelta(delta) => {
+            if delta.changes.len() > MAX_ENTITY_LIST_SIZE {
+                return Err("delta change count exceeds MAX_ENTITY_LIST_SIZE");
+            }
+            for state in &delta.changes {
+                if let Some(ref owner) = state.owner
+                    && owner.len() > MAX_NODE_ID_LEN
+                {
+                    return Err("entity owner NodeId exceeds MAX_NODE_ID_LEN");
+                }
+            }
+        }
+        NetMessage::InputReplication(input) => {
+            if input.node_id.len() > MAX_NODE_ID_LEN {
+                return Err("input node_id exceeds MAX_NODE_ID_LEN");
+            }
+            if input.payload.len() > MAX_INPUT_PAYLOAD_LEN {
+                return Err("input payload exceeds MAX_INPUT_PAYLOAD_LEN");
+            }
+        }
+        NetMessage::PlayerJoin { node_id } | NetMessage::PlayerLeave { node_id } => {
+            if node_id.len() > MAX_NODE_ID_LEN {
+                return Err("join/leave node_id exceeds MAX_NODE_ID_LEN");
+            }
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -194,7 +272,16 @@ impl NetState {
     }
 
     /// Queue a message for sending.
+    ///
+    /// Messages are dropped when the outbox reaches `MAX_OUTBOX_SIZE`.
     pub fn send(&mut self, msg: NetMessage) {
+        if self.outbox.len() >= MAX_OUTBOX_SIZE {
+            tracing::warn!(
+                queue_len = self.outbox.len(),
+                "outbox full — dropping outbound message"
+            );
+            return;
+        }
         self.outbox.push(msg);
     }
 
@@ -204,7 +291,23 @@ impl NetState {
     }
 
     /// Push an inbound message (received from network).
+    ///
+    /// Messages are validated and dropped when malformed or when the inbox
+    /// reaches `MAX_INBOX_SIZE`.
     pub fn receive(&mut self, msg: NetMessage) {
+        // SECURITY: PlayerJoin/PlayerLeave are NOT authenticated — the
+        // application layer must verify the sender's identity.
+        if let Err(reason) = validate_message(&msg) {
+            tracing::warn!(reason, "dropping inbound message — validation failed");
+            return;
+        }
+        if self.inbox.len() >= MAX_INBOX_SIZE {
+            tracing::warn!(
+                queue_len = self.inbox.len(),
+                "inbox full — dropping inbound message"
+            );
+            return;
+        }
         self.inbox.push(msg);
     }
 
@@ -310,8 +413,22 @@ impl ReliableChannel {
 
     /// Check if an incoming reliable message is a duplicate.
     /// Returns true if this is a new message (not seen before).
+    ///
+    /// Automatically trims the dedup set when it exceeds `MAX_DEDUP_ENTRIES`.
     pub fn receive(&mut self, sequence: u64) -> bool {
-        self.received.insert(sequence)
+        let is_new = self.received.insert(sequence);
+        if self.received.len() > MAX_DEDUP_ENTRIES {
+            // Keep the upper half of the sequence space — older entries are
+            // unlikely to be retransmitted.
+            let min_seq = sequence.saturating_sub(MAX_DEDUP_ENTRIES as u64 / 2);
+            self.trim_received(min_seq);
+            tracing::warn!(
+                retained = self.received.len(),
+                min_sequence = min_seq,
+                "dedup set exceeded MAX_DEDUP_ENTRIES — trimmed"
+            );
+        }
+        is_new
     }
 
     /// Number of unacknowledged reliable messages.

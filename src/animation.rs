@@ -86,6 +86,18 @@ pub struct AnimState {
 
 impl AnimState {
     /// Create an empty animation state machine.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use kiran::animation::{AnimState, AnimNode};
+    ///
+    /// let mut state = AnimState::new();
+    /// let idle = state.add_node(AnimNode::new("idle", 0));
+    /// assert_eq!(idle, 0);
+    /// let playback = state.tick(0.016);
+    /// assert_eq!(playback.clip_index, 0);
+    /// ```
     #[must_use]
     pub fn new() -> Self {
         Self::default()

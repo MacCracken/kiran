@@ -233,6 +233,18 @@ pub struct Cognition {
 
 impl Cognition {
     /// Create a new cognition component with neutral defaults.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "behavior")] {
+    /// use kiran::personality::Cognition;
+    ///
+    /// let cog = Cognition::new();
+    /// assert_eq!(cog.attention, 1.0);
+    /// assert_eq!(cog.stress, 0.0);
+    /// # }
+    /// ```
     pub fn new() -> Self {
         Self {
             memory_load: 0.0,
@@ -328,6 +340,18 @@ pub struct CreatureBehavior {
 
 impl CreatureBehavior {
     /// Create a new creature behavior with the given instinct type.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "behavior")] {
+    /// use kiran::personality::CreatureBehavior;
+    /// use kiran::personality::instinct::InstinctType;
+    ///
+    /// let behavior = CreatureBehavior::new(InstinctType::Hunger);
+    /// assert!(behavior.active);
+    /// # }
+    /// ```
     pub fn new(instinct_type: instinct::InstinctType) -> Self {
         Self {
             instincts: instinct::Instinct::new(instinct_type),

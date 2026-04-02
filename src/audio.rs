@@ -545,19 +545,15 @@ pub fn process_sound_triggers(world: &mut World) {
 
 /// Apply a trigger of the given kind to an entity, updating its SoundSource.
 fn apply_trigger(world: &mut World, entity: Entity, kind: TriggerKind) {
-    // Compare kind first (cheap) before cloning the trigger (allocates String)
-    let matches = world
+    // Extract trigger data if it matches (avoids borrowing world across mutation)
+    let trigger_data = world
         .get_component::<SoundTrigger>(entity)
-        .is_some_and(|t| t.kind == kind);
-    if !matches {
-        return;
-    }
-    // Now clone only the fields we need
-    let trigger = world.get_component::<SoundTrigger>(entity).unwrap();
-    let source_path = trigger.source.clone();
-    let volume = trigger.volume;
+        .filter(|t| t.kind == kind)
+        .map(|t| (t.source.clone(), t.volume));
 
-    if let Some(source) = world.get_component_mut::<SoundSource>(entity) {
+    if let Some((source_path, volume)) = trigger_data
+        && let Some(source) = world.get_component_mut::<SoundSource>(entity)
+    {
         source.source = source_path;
         source.volume = volume;
         source.playing = true;

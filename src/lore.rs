@@ -132,15 +132,34 @@ pub struct CultureProfile {
 
 impl CultureProfile {
     /// Create a new culture profile.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "world")] {
+    /// use kiran::lore::CultureProfile;
+    ///
+    /// let culture = CultureProfile::new("Roman Empire", "la", "julian");
+    /// assert_eq!(culture.civilization, "Roman Empire");
+    /// assert!(culture.active);
+    /// # }
+    /// ```
     pub fn new(
         civilization: impl Into<String>,
         language: impl Into<String>,
         calendar: impl Into<String>,
     ) -> Self {
+        let civilization = civilization.into();
+        let language = language.into();
+        let calendar = calendar.into();
+        tracing::trace!(
+            %civilization, %language, %calendar,
+            "created culture profile"
+        );
         Self {
-            civilization: civilization.into(),
-            language: language.into(),
-            calendar: calendar.into(),
+            civilization,
+            language,
+            calendar,
             era: String::new(),
             active: true,
         }
@@ -178,7 +197,25 @@ pub struct StochasticSource {
 
 impl StochasticSource {
     /// Create a uniform distribution source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "world")] {
+    /// use kiran::lore::StochasticSource;
+    ///
+    /// let source = StochasticSource::uniform(0.0, 1.0);
+    /// assert_eq!(source.distribution, "uniform");
+    /// assert_eq!(source.param_a, 0.0);
+    /// # }
+    /// ```
     pub fn uniform(min: f64, max: f64) -> Self {
+        tracing::trace!(
+            distribution = "uniform",
+            min,
+            max,
+            "created stochastic source"
+        );
         Self {
             distribution: "uniform".into(),
             param_a: min,
@@ -190,6 +227,12 @@ impl StochasticSource {
 
     /// Create a normal distribution source.
     pub fn normal(mean: f64, std_dev: f64) -> Self {
+        tracing::trace!(
+            distribution = "normal",
+            mean,
+            std_dev,
+            "created stochastic source"
+        );
         Self {
             distribution: "normal".into(),
             param_a: mean,

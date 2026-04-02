@@ -9,6 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::world::{Entity, World};
 
+/// Maximum number of pending script messages per buffer (inbox/outbox).
+/// Prevents unbounded memory growth from runaway scripts.
+const MAX_SCRIPT_MESSAGES: usize = 1024;
+
 // ---------------------------------------------------------------------------
 // Script component
 // ---------------------------------------------------------------------------
@@ -133,6 +137,9 @@ impl ScriptEngine {
     pub fn new(config: ScriptConfig) -> Self {
         #[cfg(feature = "scripting")]
         let wasm = {
+            // NOTE: config.max_memory is not enforced here — kavach's
+            // SandboxConfigBuilder does not yet expose a memory-limit setter.
+            // Track upstream: https://github.com/AgnOS-AI/kavach/issues
             let sandbox_config = kavach::SandboxConfig::builder()
                 .backend(kavach::Backend::Wasm)
                 .timeout_ms(config.timeout_ms)
@@ -171,10 +178,25 @@ impl ScriptEngine {
     }
 
     /// Execute a WASM file and return the result.
-    /// Returns None if scripting feature is disabled or WASM backend unavailable.
+    ///
+    /// Returns `None` if scripting feature is disabled, WASM backend unavailable,
+    /// or the path escapes the current working directory.
     #[cfg(feature = "scripting")]
     pub fn exec_wasm(&self, wasm_path: &str) -> Option<kavach::ExecResult> {
         use kavach::backend::SandboxBackend;
+        use std::path::Path;
+
+        // Validate the path doesn't escape the working directory
+        let root = std::env::current_dir().ok()?;
+        let canonical = Path::new(wasm_path).canonicalize().ok()?;
+        if !canonical.starts_with(&root) {
+            tracing::warn!(
+                path = %wasm_path,
+                root = %root.display(),
+                "wasm path escapes working directory — rejecting",
+            );
+            return None;
+        }
 
         let backend = self.wasm.as_ref()?;
         let rt = self.rt.as_ref()?;
@@ -184,7 +206,17 @@ impl ScriptEngine {
     }
 
     /// Send a message to a script.
+    ///
+    /// Drops the message if the inbox has reached `MAX_SCRIPT_MESSAGES`.
     pub fn send(&mut self, msg: ScriptMessage) {
+        if self.inbox.len() >= MAX_SCRIPT_MESSAGES {
+            tracing::warn!(
+                limit = MAX_SCRIPT_MESSAGES,
+                "script inbox full — dropping message kind={}",
+                msg.kind,
+            );
+            return;
+        }
         self.inbox.push(msg);
     }
 
@@ -219,7 +251,17 @@ impl ScriptEngine {
     }
 
     /// Push a message to the outbox (from script execution).
+    ///
+    /// Drops the message if the outbox has reached `MAX_SCRIPT_MESSAGES`.
     pub fn push_outbox(&mut self, msg: ScriptMessage) {
+        if self.outbox.len() >= MAX_SCRIPT_MESSAGES {
+            tracing::warn!(
+                limit = MAX_SCRIPT_MESSAGES,
+                "script outbox full — dropping message kind={}",
+                msg.kind,
+            );
+            return;
+        }
         self.outbox.push(msg);
     }
 }

@@ -138,9 +138,23 @@ pub struct ChemicalBody {
 
 impl ChemicalBody {
     /// Create a new chemical body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "chemistry")] {
+    /// use kiran::chemistry::ChemicalBody;
+    ///
+    /// let water = ChemicalBody::new("H2O", 373.0);
+    /// assert_eq!(water.formula, "H2O");
+    /// assert_eq!(water.ph, 7.0);
+    /// # }
+    /// ```
     pub fn new(formula: impl Into<String>, temperature: f64) -> Self {
+        let formula = formula.into();
+        tracing::trace!(%formula, temperature, "created chemical body");
         Self {
-            formula: formula.into(),
+            formula,
             temperature,
             concentration: 0.0,
             ph: 7.0,
@@ -182,6 +196,18 @@ pub struct GeologicalBody {
 
 impl GeologicalBody {
     /// Create a new geological body.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "chemistry")] {
+    /// use kiran::chemistry::GeologicalBody;
+    ///
+    /// let granite = GeologicalBody::new("Granite", 7.0, 2700.0);
+    /// assert_eq!(granite.hardness, 7.0);
+    /// assert!(granite.active);
+    /// # }
+    /// ```
     pub fn new(material_name: impl Into<String>, hardness: f64, density: f64) -> Self {
         Self {
             material_name: material_name.into(),
@@ -218,9 +244,23 @@ pub struct RadioactiveSource {
 
 impl RadioactiveSource {
     /// Create a new radioactive source.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "chemistry")] {
+    /// use kiran::chemistry::RadioactiveSource;
+    ///
+    /// let source = RadioactiveSource::new("C-14", 1.808e11, 1e6);
+    /// assert_eq!(source.isotope, "C-14");
+    /// assert!(source.active);
+    /// # }
+    /// ```
     pub fn new(isotope: impl Into<String>, half_life: f64, activity: f64) -> Self {
+        let isotope = isotope.into();
+        tracing::trace!(%isotope, half_life, activity, "created radioactive source");
         Self {
-            isotope: isotope.into(),
+            isotope,
             half_life,
             activity,
             active: true,
